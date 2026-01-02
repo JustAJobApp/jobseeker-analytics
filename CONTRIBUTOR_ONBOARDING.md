@@ -64,7 +64,7 @@ Before starting, make sure you have:
    - Configure the OAuth consent screen if prompted
    - Click **Create Credentials** → **OAuth 2.0 Client IDs**
    - Set application type to **Web Application**
-   - Under "Authorized redirect URIs," add: `http://localhost:8000/login`
+   - Under "Authorized redirect URIs," add: `http://localhost:8000/auth/google`
    - Copy the **Client ID** and paste in `backend/.env` for `GOOGLE_CLIENT_ID`
    - Copy the **Client secret** and paste in `backend/.env` for `GOOGLE_CLIENT_SECRET`
    - On OAuth Consent Screen, add your gmail address to "Test Users"

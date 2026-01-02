@@ -5,7 +5,7 @@ from google_auth_oauthlib.flow import Flow
 
 from db.utils.user_utils import user_exists
 from utils.auth_utils import AuthenticatedUser, get_google_authorization_url, get_refresh_token_status, get_creds, get_latest_refresh_token
-from session.session_layer import create_random_session_string, validate_session, get_token_expiry
+from session.session_layer import create_random_session_string, validate_session, get_token_expiry, clear_session
 from utils.config_utils import get_settings
 from utils.cookie_utils import set_conditional_cookie
 from utils.redirect_utils import Redirects
@@ -28,7 +28,7 @@ router = APIRouter()
 APP_URL = settings.APP_URL
 
 
-@router.get("/login")
+@router.get("/auth/google")
 @limiter.limit("10/minute")
 async def login(
     request: Request, background_tasks: BackgroundTasks, db_session: database.DBSession
@@ -45,11 +45,30 @@ async def login(
         if not code:
             # Check if we have a refresh token in session
             has_refresh_token = get_refresh_token_status(request.session.get("creds"))
-            authorization_url, _ = get_google_authorization_url(
+            authorization_url, state = get_google_authorization_url(
                 flow, has_refresh_token
             )
+            request.session["oauth_state"] = state
             return RedirectResponse(url=authorization_url)
-        creds = get_creds(request=request, code=code, flow=flow)
+        
+        # OAuth callback - verify state
+        saved_state = request.session.pop("oauth_state", None)
+        query_params_state = request.query_params.get("state")
+
+        if not saved_state or saved_state != query_params_state:
+            logger.error("CSRF attack detected: session state mismatch or missing.")
+            # 1. Build the error response
+            response = Redirects.to_error("session_mismatch")
+            # 2. Clear server-side session
+            clear_session(request, response)
+            # 3. Explicitly delete cookies on THIS response
+            # Ensure domain matches your production settings if applicable
+            response.delete_cookie(key="__Secure-Authorization", domain=settings.ORIGIN)
+            response.delete_cookie(key="Authorization")
+
+            return response
+
+        creds = get_creds(request=request, code=code, flow=flow, state=query_params_state)
         if isinstance(creds, RedirectResponse):
             return creds
         user = AuthenticatedUser(creds)

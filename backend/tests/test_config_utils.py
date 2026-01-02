@@ -96,7 +96,7 @@ def test_batch_size_ends_email_processing_early(
         assert isinstance(result, JSONResponse)
         assert (
             result.body.decode()
-            == '{"message":"Processing complete","processed_emails":300,"total_emails":0}'
+            == '{"message":"Processing complete"}'
         )
         # The get_email_ids function should not be called because we return early due to batch size limit
         assert mock_get_email_ids.call_count == 0

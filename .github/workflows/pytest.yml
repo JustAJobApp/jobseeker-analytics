@@ -38,7 +38,7 @@ jobs:
           envkey_GOOGLE_SCOPES: '["https://www.googleapis.com/auth/gmail.readonly", "openid"]'
           envkey_COOKIE_SECRET: your-random-secret-here
           envkey_GOOGLE_API_KEY: your-api-key-here
-          envkey_REDIRECT_URI: http://localhost:8000/login
+          envkey_REDIRECT_URI: http://localhost:8000/auth/google
           envkey_ENV: dev
           envkey_DATABASE_URL: postgresql://postgres:postgres@db:5432/jobseeker_analytics
           envkey_APP_URL: http://localhost:3000

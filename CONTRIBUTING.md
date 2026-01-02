@@ -109,7 +109,7 @@ _Estimated time: 10-20 minutes_
 4. Click **Create Credentials** → **OAuth 2.0 Client IDs**.  
 5. Set the application type to **Web Application**.  
 6. Under "Authorized redirect URIs," add the following and save to update:  
-   - http://localhost:8000/login
+   - http://localhost:8000/auth/google
 7. Copy the **Client ID** under Additional information header
 8. In `backend/.env`, paste value for `GOOGLE_CLIENT_ID`
 9. Copy the **Client secret** under Client secrets header

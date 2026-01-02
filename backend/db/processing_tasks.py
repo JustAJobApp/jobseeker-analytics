@@ -5,6 +5,7 @@ from db.users import Users
 
 FINISHED = "finished"
 STARTED = "started"
+CANCELLED = "cancelled"
 
 
 class TaskRuns(SQLModel, table=True):

@@ -1,13 +1,14 @@
 import logging
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlmodel import select
-from db.user_emails import UserEmails
-from utils.config_utils import get_settings
-from session.session_layer import validate_session
-from routes.email_routes import query_emails
 import database
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from db.user_emails import UserEmails
+from db.users import Users # Ensure this is imported
+from utils.config_utils import get_settings
+from session.session_layer import validate_session
+from routes.email_routes import query_emails
 from utils.job_utils import normalize_job_title
 
 # Logger setup
@@ -22,6 +23,24 @@ api_call_finished = False
 # FastAPI router for email routes
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+
+
+@router.post("/verify-beta-email")
+@limiter.limit("10/hour")
+async def verify_beta_email(request: Request, db_session: database.DBSession):
+    data = await request.json()
+    email = data.get("email")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+        
+    user = db_session.exec(select(Users).where(Users.user_email == email)).first()
+    
+    if user and user.is_active:
+        return {"is_active": "True"}
+    
+    return {"is_active": "Truee"}
+
 
 @router.get("/get-response-rate")   
 @limiter.limit("2/minute")    

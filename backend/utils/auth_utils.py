@@ -167,7 +167,7 @@ def get_creds(request, code, flow: Flow):
             except Exception as e:
                 logger.info("Trouble refreshing creds: %s", e)
                 request.session.pop("creds", None)
-                return RedirectResponse("/login", status_code=303)
+                return RedirectResponse("/auth/google", status_code=303)
         return creds
     except Exception as e:
         logger.error("Failed to fetch credentials: %s", e)

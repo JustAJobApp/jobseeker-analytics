@@ -2,7 +2,7 @@
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
-from fastapi import Request
+from fastapi import Request, Response
 from utils.config_utils import get_settings
 import database
 from db.users import Users
@@ -17,10 +17,21 @@ def create_random_session_string() -> str:
     return secrets.token_urlsafe(32)  # Generates a random URL-safe string
 
 
-def clear_session(request: Request, user_id: str) -> None:
-    logger.info("user_id: %s clear_session" % user_id)
-    request.cookies.clear()
+def clear_session(request: Request, response: Response) -> None:
+    # 1. Clear the Starlette/FastAPI session storage
+    request.session.clear() 
 
+    # 2. Delete the primary auth cookies
+    # We delete both the prefixed and non-prefixed versions to be safe 
+    # across dev/prod environments
+    response.delete_cookie(key="Authorization")
+    response.delete_cookie(key="__Secure-Authorization", domain=settings.ORIGIN)
+    response.delete_cookie(key="__Host-Authorization")
+    
+    # 3. Also clear the SessionMiddleware cookie itself
+    response.delete_cookie(key="session", domain=settings.ORIGIN)
+
+    logger.warning("Session and cookies cleared for security.")
 
 def validate_session(request: Request, db_session: database.DBSession) -> str:
     """Retrieves Authorization, session_id, access_token and token_expiry

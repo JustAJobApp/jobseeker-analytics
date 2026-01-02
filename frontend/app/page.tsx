@@ -5,31 +5,22 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/react";
 
 import { Navbar } from "@/components/navbar";
-import { GoogleIcon } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 
 const Index = () => {
 	const [showImagePopup, setShowImagePopup] = useState(false);
 	const [popupImageSrc, setPopupImageSrc] = useState("");
 	const router = useRouter();
-	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 
-	const handleGoogleLogin = () => {
-		router.push(`${apiUrl}/login`);
+	const handleLogin = () => {
+		router.push(`/login`);
 	};
 
-	const BetaLoginButton = ({
-		label = "Login with Google",
-		fullWidth = false
-	}: {
-		label?: string;
-		fullWidth?: boolean;
-	}) => (
+	const BetaLoginButton = ({ label = "Login", fullWidth = false }: { label?: string; fullWidth?: boolean }) => (
 		<Button
 			className={`${fullWidth ? "w-full " : ""}bg-white border-gray-300 text-gray-700 hover:bg-gray-50`}
-			startContent={<GoogleIcon size={16} />}
 			variant="bordered"
-			onPress={handleGoogleLogin}
+			onPress={handleLogin}
 		>
 			{label}
 		</Button>
@@ -63,10 +54,7 @@ const Index = () => {
 							<div className="mt-8">
 								<p className="text-sm text-gray-500">
 									Already a beta tester?{" "}
-									<a
-										className="font-medium text-emerald-600 hover:text-emerald-500"
-										href="#beta-testers"
-									>
+									<a className="font-medium text-emerald-600 hover:text-emerald-500" href="/login">
 										Login here
 									</a>
 									.
