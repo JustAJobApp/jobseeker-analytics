@@ -130,7 +130,7 @@ export default function LoginPage() {
 									type="text"
 									value={code}
 									variant="bordered"
-									onChange={(e) => setCode(e.target.value.toUpperCase())}
+									onChange={(e) => setCode(e.target.value)}
 								/>
 								<Button
 									aria-label="Continue to sign in"
