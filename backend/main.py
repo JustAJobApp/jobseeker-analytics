@@ -75,10 +75,23 @@ app.state.limiter = limiter  # Ensure limiter is assigned
 app.add_middleware(SlowAPIMiddleware)
 
 # Add CORS middleware
+# Explicit subdomain list to prevent subdomain takeover attacks
+ALLOWED_ORIGINS = [
+    "https://justajobapp.com",
+    "https://www.justajobapp.com",
+    "https://app.justajobapp.com",
+    "https://www.app.justajobapp.com",
+    "https://api.justajobapp.com",
+    "https://www.api.justajobapp.com",
+    "https://coach.justajobapp.com",
+    "https://its.justajobapp.com",
+    "https://blog.justajobapp.com",
+]
+
 if settings.is_publicly_deployed:
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https://.*\.justajobapp\.com",
+        allow_origins=ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -345,10 +345,14 @@ export default function Dashboard() {
 			}
 
 			// Fetch applications (if user is logged in)
-			const viewParam = viewAs ? `&view_as=${encodeURIComponent(viewAs)}` : "";
-			const response = await fetch(`${apiUrl}/get-emails?page=${currentPage}${viewParam}`, {
+			const headers: HeadersInit = {};
+			if (viewAs) {
+				headers["X-View-As"] = viewAs;
+			}
+			const response = await fetch(`${apiUrl}/get-emails?page=${currentPage}`, {
 				method: "GET",
-				credentials: "include" // Include cookies for session management
+				credentials: "include", // Include cookies for session management
+				headers
 			});
 
 			if (!response.ok) {

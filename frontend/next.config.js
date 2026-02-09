@@ -17,7 +17,7 @@ const nextConfig = {
 			},
 			{
 				key: "Content-Security-Policy",
-				value: "frame-ancestors 'none'"
+				value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.termly.io https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://app.termly.io; frame-src https://www.google.com/recaptcha/; frame-ancestors 'none'"
 			},
 			{
 				key: "X-Content-Type-Options",

@@ -129,8 +129,8 @@ class TestRoleBasedAccess:
     def test_coach_can_view_client_emails(
         self, logged_in_coach_client, coach_client_link, client_user
     ):
-        """Coach should be able to view their client's emails via view_as parameter."""
-        resp = logged_in_coach_client.get(f"/get-emails?view_as={client_user.user_id}")
+        """Coach should be able to view their client's emails via X-View-As header."""
+        resp = logged_in_coach_client.get("/get-emails", headers={"X-View-As": client_user.user_id})
         assert resp.status_code == 200
 
     def test_coach_cannot_view_non_client_emails(
@@ -144,7 +144,7 @@ class TestRoleBasedAccess:
             role="jobseeker",
         )
 
-        resp = logged_in_coach_client.get(f"/get-emails?view_as={non_client.user_id}")
+        resp = logged_in_coach_client.get("/get-emails", headers={"X-View-As": non_client.user_id})
         # Should either return 403 or empty list
         assert resp.status_code in (200, 403)
         if resp.status_code == 200:

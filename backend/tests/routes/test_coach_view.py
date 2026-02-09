@@ -23,7 +23,7 @@ def test_coach_view_client_emails(logged_in_coach_client, coach_client_link, db_
     db_session.add(email)
     db_session.commit()
 
-    resp = logged_in_coach_client.get(f"/get-emails?view_as={client_user.user_id}")
+    resp = logged_in_coach_client.get("/get-emails", headers={"X-View-As": client_user.user_id})
     assert resp.status_code == 200
     data = resp.json()
     # Should see client's email

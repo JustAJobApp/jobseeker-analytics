@@ -14,11 +14,11 @@ def get_context_user_id(
 ) -> str:
     """
     Determines the target user_id for the query.
-    If 'view_as_client' header/param is present, verifies relationship.
+    If 'X-View-As' header is present, verifies coach-client relationship.
     Otherwise returns the authenticated user.
     """
-    # Check if the caller wants to view a specific client's data
-    target_client_id = request.query_params.get("view_as") or request.headers.get("X-View-As")
+    # Check if the caller wants to view a specific client's data (header only for security)
+    target_client_id = request.headers.get("X-View-As")
     logger.info(
         "get_context_user_id: authenticated_user_id=%s, target_client_id=%s, path=%s", 
         authenticated_user_id, target_client_id, request.url.path
