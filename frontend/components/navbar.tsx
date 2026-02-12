@@ -102,7 +102,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 	}
 
 	return (
-		<nav className="sticky top-0 z-50 bg-background dark:bg-content1 shadow-md border-b border-divider">
+		<nav className="fixed top-0 left-0 right-0 z-50  bg-background dark:bg-content1 shadow-md border-b border-divider">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="flex items-center justify-between h-16">
 					{/* Logo and brand - left side */}
@@ -127,10 +127,10 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 					</div>
 
 					{/* Center/Right navigation links and actions */}
-					<div className="hidden md:flex items-center space-x-2">
+					<div className="hidden md:flex items-center space-x-1 lg-nav:space-x-2">
 						{/* About dropdown */}
 						<div className="relative group">
-							<button className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
+							<button className="px-2 lg-nav:px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
 								About
 								<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
@@ -173,7 +173,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 
 						{/* Find Jobs - top-level external link */}
 						<a
-							className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1"
+							className="px-2 lg-nav:px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1"
 							href={siteConfig.links.hiringCafe}
 							rel="noopener noreferrer"
 							target="_blank"
@@ -187,7 +187,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 
 						{/* Resources dropdown */}
 						<div className="relative group">
-							<button className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
+							<button className="px-2 lg-nav:px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
 								Resources
 								<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
@@ -242,7 +242,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 
 						{/* Contribute dropdown */}
 						<div className="relative group">
-							<button className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
+							<button className="px-2 lg-nav:px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-1">
 								Contribute
 								<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
@@ -289,7 +289,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 						{isAuthenticated && pathname !== "/dashboard" && (
 							<>
 								<NextLink
-									className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors"
+									className="inline-flex items-center gap-2 px-3 lg-nav:px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors"
 									href="/dashboard"
 								>
 									<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -350,7 +350,7 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 						{/* Primary CTA button (Dashboard or Login) - only show when not authenticated or on dashboard */}
 						{(!isAuthenticated || pathname === "/dashboard") && (
 							<NextLink
-								className="ml-4 inline-flex items-center px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors"
+								className="ml-2 lg-nav:ml-4 inline-flex items-center px-3 lg-nav:px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors"
 								href={primaryCTA.href}
 							>
 								{primaryCTA.label}
