@@ -10,6 +10,7 @@ from utils.file_utils import get_user_filepath
 from session.session_layer import validate_session, user_has_recent_authentication
 from routes.email_routes import query_emails
 from utils.config_utils import get_settings
+from utils.validator_utils import sanitize_csv_field
 
 settings = get_settings()
 
@@ -73,7 +74,7 @@ async def process_csv(
         writer = csv.writer(file)
         writer.writerow(headers)
         for row in processed_emails:
-            writer.writerow([row[field] for field in selected_fields])
+            writer.writerow([sanitize_csv_field(row[field]) for field in selected_fields])
 
     logger.info("CSV file created at %s", filepath)
 

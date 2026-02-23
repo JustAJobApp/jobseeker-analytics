@@ -3,7 +3,6 @@ import email.utils
 from fastapi import APIRouter, Depends, Request, HTTPException
 import logging
 from pydantic import BaseModel, Field, field_validator
-import re
 from sqlmodel import select, and_
 from typing import Optional
 import uuid
@@ -13,16 +12,13 @@ from session.session_layer import validate_session
 import database
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from utils.validator_utils import reject_html_svg
 
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-def reject_html_svg(value: Optional[str]) -> Optional[str]:
-    if value and re.search(r'<[^>]*>', value):
-        raise ValueError("HTML and SVG content is not permitted")
-    return value
 
 # Request/Response models
 class JobApplicationCreate(BaseModel):
