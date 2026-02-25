@@ -2,15 +2,14 @@ import re
 from typing import Optional
 
 
-def sanitize_csv_field(field_value: str) -> str:
+def sanitize_csv_field(field_value: object) -> str:
     """Prevents CSV Injection (Formula Injection)"""
-    if not field_value:
-        return field_value
+    if field_value is None:
+        return ""
     
     value_str = str(field_value)
-    # If the field starts with a formula trigger character, 
-    # prepend a single quote (') to treat as literal
-    if value_str.startswith(('=', '+', '-', '@', '\t', '\r')):
+    # Check for trigger characters, including those preceded by whitespace
+    if value_str.lstrip().startswith(('=', '+', '-', '@', '\t', '\r')):
         return f"'{value_str}"
     
     return value_str
