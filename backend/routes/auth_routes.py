@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlmodel import select
 from google_auth_oauthlib.flow import Flow
+import secrets
 import time
 
 from db.utils.user_utils import user_exists
@@ -102,7 +103,7 @@ async def login(
         saved_state = request.session.pop("oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected: session state mismatch or missing.")
             # 1. Build the error response
             response = Redirects.to_error("session_mismatch")
@@ -301,7 +302,7 @@ async def signup(request: Request, db_session: database.DBSession):
         saved_state = request.session.pop("oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected: session state mismatch or missing.")
             response = Redirects.to_error("session_mismatch")
             clear_session(request, response)
@@ -413,7 +414,7 @@ async def email_sync_auth(
         saved_state = request.session.pop("email_sync_oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected in email sync: session state mismatch or missing.")
             return Redirects.to_error("session_mismatch")
 
