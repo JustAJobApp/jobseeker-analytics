@@ -17,6 +17,6 @@ def sanitize_csv_field(field_value: str) -> str:
 
 
 def reject_html_svg(value: Optional[str]) -> Optional[str]:
-    if value and re.search(r'<[^>]*>', value):
+    if value and re.search(r'<\s*[a-zA-Z/!]', value):
         raise ValueError("HTML and SVG content is not permitted")
     return value
