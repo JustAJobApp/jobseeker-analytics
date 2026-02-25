@@ -74,7 +74,7 @@ async def process_csv(
         writer = csv.writer(file)
         writer.writerow(headers)
         for row in processed_emails:
-            writer.writerow([sanitize_csv_field(row[field]) for field in selected_fields])
+            writer.writerow([sanitize_csv_field(row.get(field, "")) for field in selected_fields])
 
     logger.info("CSV file created at %s", filepath)
 
