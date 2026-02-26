@@ -139,7 +139,7 @@ async def login(
             old_creds = load_credentials(db_session, user.user_id, credential_type="primary", auto_refresh=False)
             creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)
             save_credentials(db_session, user.user_id, creds, credential_type="primary")
-            logger.info("Saved credentials for premium user %s", user.user_id)
+            logger.info("Saved/updated credentials for user %s", user.user_id)
 
         # Default to False for existing users, will be overwritten if needed
         request.session["is_new_user"] = False 
