@@ -19,12 +19,15 @@ from routes import email_routes, auth_routes, file_routes, users_routes, start_d
 
 # Configure logging early so it's available in lifespan
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, format="%(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # App startup
     settings = get_settings()
+
+    if not settings.is_publicly_deployed:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s - %(message)s")
 
     # Log the Security Integrity Fingerprint
     fingerprint = settings.get_security_fingerprint()
@@ -32,7 +35,7 @@ async def lifespan(app: FastAPI):
     logger.info("SECURITY INTEGRITY AUDIT")
     logger.info(f"Configuration Fingerprint: {fingerprint}")
     logger.info("================================================")
-
+    
     # Start background scheduler for Always Open email sync (production only)
     if settings.is_publicly_deployed:
         start_scheduler()
