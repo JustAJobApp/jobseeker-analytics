@@ -454,7 +454,7 @@ async def email_sync_auth(
         user.sync_email_address = sync_user.user_email
         db_session.add(user)
         db_session.commit()
-        logger.info("Email sync configured for user_id: %s with email: %s", user_id, sync_user.user_email)
+        logger.info("Email sync configured for user_id: %s", user_id)
 
         # Get last fetched date for incremental sync
         from db.utils.user_utils import get_last_email_date
