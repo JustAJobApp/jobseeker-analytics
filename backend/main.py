@@ -1,25 +1,50 @@
-import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
+import logging
+import re
+
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
 from utils.config_utils import get_settings
-from contextlib import asynccontextmanager
 import database  # noqa: F401 - used for dependency injection
 from scheduler.background_scheduler import start_scheduler, stop_scheduler
 # Import routes
 from routes import email_routes, auth_routes, file_routes, users_routes, start_date_routes, job_applications_routes, coach_routes, onboarding_routes, stripe_webhook_routes, payment_routes
 
-# Configure logging early so it's available in lifespan
+
+class OAuthRedactionFilter(logging.Filter):
+    """
+    Intercepts Uvicorn access logs and redacts sensitive OAuth query parameters.
+    """
+    def filter(self, record):
+        # Uvicorn access logs pass the request line components in record.args
+        if hasattr(record, "args") and isinstance(record.args, tuple):
+            new_args = []
+            for arg in record.args:
+                if isinstance(arg, str) and "/auth/google" in arg:
+                    # Redact the 'code' and 'state' query parameters
+                    arg = re.sub(r'(code|state)=[^&\s]+', r'\1=[REDACTED]', arg)
+                new_args.append(arg)
+            record.args = tuple(new_args)
+            
+        # Also check the main message string just in case
+        if isinstance(record.msg, str) and "/auth/google" in record.msg:
+            record.msg = re.sub(r'(code|state)=[^&\s]+', r'\1=[REDACTED]', record.msg)
+            
+        return True
+
+# 2. Define the app logger and attach the redaction filter
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+logger.addFilter(OAuthRedactionFilter())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +53,10 @@ async def lifespan(app: FastAPI):
 
     if not settings.is_publicly_deployed:
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s - %(message)s")
+        logger.setLevel(logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+        logger.setLevel(logging.INFO)
 
     # Log the Security Integrity Fingerprint
     fingerprint = settings.get_security_fingerprint()
@@ -170,5 +199,15 @@ async def heartbeat(request: Request):
 # Run the app using Uvicorn
 if __name__ == "__main__":
     import uvicorn
+    import logging
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 1. Start uvicorn without starting the server immediately to get the loggers
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    
+    # 2. Attach the redaction filter to Uvicorn's access logger
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.addFilter(OAuthRedactionFilter())
+    
+    # 3. Run the server
+    server.run()
