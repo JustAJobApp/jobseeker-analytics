@@ -1,5 +1,4 @@
 import logging
-import json
 from fastapi import APIRouter, Request, Depends, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -12,8 +11,8 @@ from db.users import Users
 from db import processing_tasks as task_models
 from datetime import datetime, timezone, timedelta
 from sqlmodel import select
-from google.oauth2.credentials import Credentials
 from utils.auth_utils import AuthenticatedUser
+from utils.credential_service import load_credentials
 from routes.email_routes import fetch_emails_to_db
 
 limiter = Limiter(key_func=get_remote_address)
@@ -85,8 +84,13 @@ async def update_start_date(
         raise HTTPException(status_code=404, detail="User not found")
 
     # Check if credentials are valid for rescan
-    creds_json = request.session.get("creds")
-    if not creds_json:
+    from utils.billing_utils import is_premium_eligible
+    
+    user = db_session.get(Users, user_id)
+    should_auto_refresh = is_premium_eligible(db_session, user) if user else False
+    
+    creds = load_credentials(db_session, user_id, credential_type="primary", auto_refresh=should_auto_refresh)
+    if not creds:
         raise HTTPException(status_code=401, detail="token_expired")
 
     # Calculate new start date
@@ -131,9 +135,11 @@ async def update_start_date(
     if not active_task:
         # Start background processing with new date
         try:
-            creds_dict = json.loads(creds_json)
-            creds = Credentials.from_authorized_user_info(creds_dict)
-            auth_user = AuthenticatedUser(creds)
+            auth_user = AuthenticatedUser(
+                creds, 
+                _user_id=user.user_id, 
+                _user_email=user.user_email
+            )
 
             # Use the new start date for fetching
             background_tasks.add_task(

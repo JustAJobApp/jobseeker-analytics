@@ -15,11 +15,6 @@ class Redirects:
         return Redirects.to_frontend("/dashboard")
 
     @staticmethod
-    def to_processing() -> RedirectResponse:
-        # Redirect to dashboard - ProcessingBanner will show processing status
-        return Redirects.to_frontend("/dashboard")
-
-    @staticmethod
     def to_error(reason: str) -> RedirectResponse:
         return Redirects.to_frontend(f"/errors?message={reason}")
 

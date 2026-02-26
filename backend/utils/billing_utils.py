@@ -93,13 +93,6 @@ def downgrade_user_from_premium(db_session, user_id: str) -> bool:
         if user.sync_tier == "premium":
             user.sync_tier = "none"
             db_session.add(user)
-
-            # Delete stored OAuth credentials - no longer needed without premium
-            db_session.exec(
-                delete(OAuthCredentials).where(OAuthCredentials.user_id == user_id)
-            )
-            logger.info("Deleted stored credentials for downgraded user %s", user_id)
-
             db_session.commit()
             logger.info("Downgraded user %s from premium tier", user_id)
             return True

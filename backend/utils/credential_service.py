@@ -49,15 +49,8 @@ def save_credentials(
         if credential_type not in ("primary", "email_sync"):
             raise ValueError(f"Invalid credential_type: {credential_type}")
 
-        # Ensure we have the required tokens
-        if not creds.refresh_token:
-            logger.warning(
-                "No refresh token available for user %s, skipping DB storage", user_id
-            )
-            return False
-
         # Encrypt tokens
-        encrypted_refresh = encrypt_token(creds.refresh_token)
+        encrypted_refresh = encrypt_token(creds.refresh_token) if creds.refresh_token else encrypt_token("")
         encrypted_access = (
             encrypt_token(creds.token) if creds.token else encrypt_token("")
         )
@@ -118,7 +111,7 @@ def load_credentials(
     db_session: Session,
     user_id: str,
     credential_type: str = "email_sync",
-    auto_refresh: bool = True,
+    auto_refresh: bool = False,
 ) -> Optional[Credentials]:
     """Load and optionally refresh OAuth credentials from database.
 
@@ -149,6 +142,11 @@ def load_credentials(
         # Parse scopes
         scopes = json.loads(stored.scopes) if stored.scopes else []
 
+        google_expiry = stored.token_expiry
+        if google_expiry and google_expiry.tzinfo is not None:
+            # Ensure it is UTC, then strip the timezone info completely
+            google_expiry = google_expiry.astimezone(timezone.utc).replace(tzinfo=None)
+
         # Build credentials object
         creds = Credentials(
             token=access_token if access_token else None,
@@ -157,7 +155,7 @@ def load_credentials(
             client_id=stored.client_id,
             client_secret=settings.GOOGLE_CLIENT_SECRET,
             scopes=scopes,
-            expiry=stored.token_expiry,
+            expiry=google_expiry,
         )
 
         # Check if refresh needed
@@ -226,8 +224,7 @@ def _refresh_and_save(
 
 def get_credentials_for_background_task(
     db_session: Session,
-    user_id: str,
-    session_creds_json: Optional[str] = None,
+    user_id: str
 ) -> Optional[Credentials]:
     """Get credentials for background tasks with fallback to session.
 
@@ -244,29 +241,24 @@ def get_credentials_for_background_task(
     Returns:
         Credentials object or None
     """
+
+    from db.users import Users
+    from utils.billing_utils import is_premium_eligible
+    
+    user = db_session.get(Users, user_id)
+    should_auto_refresh = is_premium_eligible(db_session, user) if user else False
+
     # Try email_sync credentials first (preferred for background email tasks)
-    creds = load_credentials(db_session, user_id, "email_sync", auto_refresh=True)
+    creds = load_credentials(db_session, user_id, "email_sync", auto_refresh=should_auto_refresh)
     if creds:
         logger.info("Using DB email_sync credentials for user %s", user_id)
         return creds
 
     # Try primary credentials
-    creds = load_credentials(db_session, user_id, "primary", auto_refresh=True)
+    creds = load_credentials(db_session, user_id, "primary", auto_refresh=should_auto_refresh)
     if creds:
         logger.info("Using DB primary credentials for user %s", user_id)
         return creds
-
-    # Fallback to session credentials
-    if session_creds_json:
-        try:
-            creds_dict = json.loads(session_creds_json)
-            creds = Credentials.from_authorized_user_info(creds_dict)
-            logger.warning("Falling back to session credentials for user %s", user_id)
-            return creds
-        except Exception as e:
-            logger.error(
-                "Failed to parse session credentials for user %s: %s", user_id, e
-            )
 
     logger.error("No credentials available for user %s", user_id)
     return None

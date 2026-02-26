@@ -125,46 +125,39 @@ def get_google_authorization_url(flow, has_valid_creds: bool, step_up: bool = Fa
 
 
 def get_refresh_token_status(
-    session_creds: object,
     db_session=None,
     user_id: str = None,
+    credential_type: str = None,
 ) -> bool:
-    """Check if user has a valid refresh token (DB first, then session fallback).
+    """Check if user has a valid refresh token.
 
     Args:
-        session_creds: Credentials JSON string from session
-        db_session: Optional database session for DB credential lookup
-        user_id: Optional user ID for DB credential lookup
+        db_session: Database session for DB credential lookup
+        user_id: User ID for DB credential lookup
+        credential_type: email_sync or primary string
 
     Returns:
-        True if refresh token exists (in DB or session), False otherwise
+        True if refresh token exists (in DB), False otherwise
     """
-    # Check DB credentials first (preferred source)
-    if db_session and user_id:
-        from utils.credential_service import load_credentials
+    if not db_session or not user_id:
+        return False
+    
+    from utils.credential_service import load_credentials
 
-        # Try email_sync credentials first, then primary
-        for cred_type in ["email_sync", "primary"]:
-            creds = load_credentials(
-                db_session, user_id, cred_type, auto_refresh=False
+    # If a specific type is requested, only check that type
+    types_to_check = [credential_type] if credential_type else ["email_sync", "primary"]
+
+    for cred_type in types_to_check:
+        creds = load_credentials(
+            db_session, user_id, cred_type, auto_refresh=False
+        )
+        if creds and creds.refresh_token:
+            logger.info(
+                "Found valid refresh token in DB (%s) for user %s",
+                cred_type,
+                user_id,
             )
-            if creds and creds.refresh_token:
-                logger.info(
-                    "Found valid refresh token in DB (%s) for user %s",
-                    cred_type,
-                    user_id,
-                )
-                return True
-
-    # Fall back to session credentials
-    if session_creds:
-        try:
-            creds_dict = json.loads(session_creds)
-            if creds_dict.get("refresh_token"):
-                logger.info("Found valid refresh token in session")
-                return True
-        except json.JSONDecodeError:
-            logger.info("Trouble loading credentials from user session.")
+            return True
 
     return False
 
@@ -197,7 +190,6 @@ def get_creds(request, code, flow: Flow):
                 creds.refresh(Request())
             except Exception as e:
                 logger.info("Trouble refreshing creds: %s", e)
-                request.session.pop("creds", None)
                 return RedirectResponse("/auth/google", status_code=303)
         return creds
     except Exception as e:
@@ -208,17 +200,34 @@ def get_creds(request, code, flow: Flow):
         )
 
 
-def get_latest_refresh_token(old_creds, new_creds):
-    new_creds_json = new_creds.to_json()
+def get_latest_refresh_token(old_creds, new_creds: Credentials) -> Credentials:
+    """Preserves the refresh token from old credentials if the new ones don't have it."""
     if not new_creds.refresh_token and old_creds:
-        try:
-            old_dict = json.loads(old_creds)
-            if old_dict.get("refresh_token"):
-                new_dict = json.loads(new_creds_json)
-                new_dict["refresh_token"] = old_dict["refresh_token"]
-                new_creds_json = json.dumps(new_dict)
-        except json.JSONDecodeError as e:
-            logger.warning(
-                "Failed to preserve refresh token from old credentials: %s", str(e)
+        old_refresh_token = None
+        
+        # Check if old_creds is a Credentials object (from DB load)
+        if hasattr(old_creds, 'refresh_token') and old_creds.refresh_token:
+            old_refresh_token = old_creds.refresh_token
+        # Check if old_creds is a JSON string (legacy session fallback)
+        elif isinstance(old_creds, str):
+            try:
+                old_dict = json.loads(old_creds)
+                if old_dict.get("refresh_token"):
+                    old_refresh_token = old_dict["refresh_token"]
+            except Exception as e:
+                logger.warning("Failed to preserve refresh token from old credentials: %s", str(e))
+        
+        if old_refresh_token:
+            # Re-instantiate the Credentials object to bypass the read-only property restriction
+            new_creds = Credentials(
+                token=new_creds.token,
+                refresh_token=old_refresh_token,
+                id_token=new_creds.id_token,
+                token_uri=new_creds.token_uri,
+                client_id=new_creds.client_id,
+                client_secret=new_creds.client_secret,
+                scopes=new_creds.scopes,
+                expiry=new_creds.expiry
             )
-    return new_creds_json
+                
+    return new_creds
