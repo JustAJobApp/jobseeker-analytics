@@ -117,7 +117,7 @@ runs:
       
 
       # Set as outputs for use in subsequent steps
-      echo "database_url=postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${ENDPOINT_ADDRESS}:${ENDPOINT_PORT}/${MASTER_DATABASE_NAME}" >> $GITHUB_OUTPUT
+      echo "database_url=postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${ENDPOINT_ADDRESS}:${ENDPOINT_PORT}/${MASTER_DATABASE_NAME}?sslmode=require" >> $GITHUB_OUTPUT
 
       # Clean up shell variables immediately after use
       unset MASTER_PASSWORD MASTER_USERNAME MASTER_DATABASE_NAME ENDPOINT_ADDRESS ENDPOINT_PORT DB_INFO
