@@ -2,10 +2,9 @@
 
 import logging
 
-from sqlmodel import select, delete
+from sqlmodel import select
 
 from db.users import Users, CoachClientLink
-from db.oauth_credentials import OAuthCredentials
 
 logger = logging.getLogger(__name__)
 

@@ -77,7 +77,8 @@ def validate_session(request: Request, db_session: database.DBSession) -> str:
                     saved = save_credentials(db_session, user_id, creds_obj, "primary")
                     if saved:
                         logger.info("Migrated primary credentials to database for user %s", user_id)
-                    else: logger.error("Failed to migrate primary credentials for user %s: %s", user_id)
+                    else: 
+                        logger.error("Failed to migrate primary credentials for user %s: %s", user_id)
                 except Exception as e:
                     logger.error("Failed to migrate primary credentials for user %s: %s", user_id, e)
             
@@ -110,7 +111,8 @@ def validate_session(request: Request, db_session: database.DBSession) -> str:
         db_session.commit()
         try:
             user = db_session.exec(select(Users).where(Users.user_email == user_email)).first()
-        except Exception as e:
+        except Exception:
+            logger.info("Unable to load user")
             request.session.clear()
             return ""
             
