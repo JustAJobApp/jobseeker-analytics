@@ -6,6 +6,9 @@ on:
     paths:
       - 'frontend/**'
 
+permissions:
+  contents: read
+
 jobs:
   frontend-checks:
     name: Frontend Build, Lint, and Format
