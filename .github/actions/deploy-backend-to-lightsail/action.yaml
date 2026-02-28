@@ -43,9 +43,6 @@ inputs:
   origin:
     description: Origin
     required: true
-  token-encryption-key:
-    description: Fernet key for encrypting OAuth tokens in DB
-    required: true
 
 runs:
   using: composite
@@ -66,7 +63,6 @@ runs:
       echo "::add-mask::${{ inputs.google-client-redirect-uri }}"
       echo "::add-mask::${{ inputs.ls-database-name }}"
       echo "::add-mask::${{ inputs.origin }}"
-      echo "::add-mask::${{ inputs.token-encryption-key }}"
 
   - name: Set up AWS CLI
     uses: aws-actions/configure-aws-credentials@v1
