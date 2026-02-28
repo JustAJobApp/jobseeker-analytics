@@ -49,7 +49,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'  # Set your Python version
+          python-version: '3.11'  # Set your Python version
 
       - name: Create static directory
         run: mkdir -p backend/static
