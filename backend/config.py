@@ -91,7 +91,7 @@ class Settings(BaseSettings):
             "AWS_DATABASE_REGION",        # AWS Config
             "AWS_KMS_ACCESS_KEY_ID",      # AWS Config
             "AWS_KMS_SECRET_ACCESS_KEY",  # AWS Config
-            "AWS_KMS_KEY_ARN"                 # AWS Config
+            "AWS_KMS_KEY_ARN",            # AWS Config
         ]
         
         # Build a sorted dictionary to ensure the hash is consistent every time
