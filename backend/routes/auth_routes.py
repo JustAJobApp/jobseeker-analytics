@@ -10,6 +10,7 @@ import time
 from db.utils.user_utils import user_exists
 from utils.auth_utils import AuthenticatedUser, get_google_authorization_url, get_refresh_token_status, get_creds, get_latest_refresh_token
 from session.session_layer import clear_session, create_random_session_string, get_token_expiry, validate_session
+from utils.billing_utils import is_premium_eligible
 from utils.config_utils import get_settings
 from utils.cookie_utils import set_conditional_cookie
 from utils.credential_service import load_credentials, save_credentials
@@ -381,7 +382,6 @@ async def email_sync_auth(
     Requires user to be authenticated already.
     """
     from db.users import Users
-    from utils.billing_utils import is_premium_eligible
 
     code = request.query_params.get("code")
 
@@ -437,12 +437,6 @@ async def email_sync_auth(
         if not user:
             return Redirects.to_error("auth_required")
 
-        old_creds = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=False)
-        creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)
-        save_credentials(db_session, user_id, creds, credential_type="email_sync")
-
-        should_auto_refresh = is_premium_eligible(db_session, user) if user else False
-
         old_creds_from_db = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=False)
         creds_to_save = get_latest_refresh_token(old_creds=old_creds_from_db, new_creds=creds)
         save_credentials(db_session, user_id, creds_to_save, credential_type="email_sync")
@@ -450,7 +444,7 @@ async def email_sync_auth(
         logger.info("Saved email_sync credentials for premium user %s", user_id)
 
         # Load final credentials for the background task, refreshing if needed
-        should_auto_refresh = is_premium_eligible(db_session, user)
+        should_auto_refresh = is_premium_eligible(db_session, user) if user else False
         final_creds_for_task = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=should_auto_refresh)
         
         if not final_creds_for_task:

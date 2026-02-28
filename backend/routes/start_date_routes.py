@@ -12,6 +12,7 @@ from db import processing_tasks as task_models
 from datetime import datetime, timezone, timedelta
 from sqlmodel import select
 from utils.auth_utils import AuthenticatedUser
+from utils.billing_utils import is_premium_eligible
 from utils.credential_service import load_credentials
 from routes.email_routes import fetch_emails_to_db
 
@@ -82,9 +83,6 @@ async def update_start_date(
     user = db_session.get(Users, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
-    # Check if credentials are valid for rescan
-    from utils.billing_utils import is_premium_eligible
     
     user = db_session.get(Users, user_id)
     should_auto_refresh = is_premium_eligible(db_session, user) if user else False
