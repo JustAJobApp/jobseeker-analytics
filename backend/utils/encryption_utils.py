@@ -1,108 +1,74 @@
-"""Fernet-based encryption utilities for OAuth token storage.
+"""AWS KMS-based encryption utilities for OAuth token storage."""
 
-Uses symmetric encryption with a key from TOKEN_ENCRYPTION_KEY environment variable.
-Fernet guarantees that tokens encrypted with it cannot be manipulated or read without the key.
-"""
-
+import base64
 import logging
-from functools import lru_cache
-
-from cryptography.fernet import Fernet, InvalidToken
 
 from utils.config_utils import get_settings
+
 
 logger = logging.getLogger(__name__)
 
 
 class EncryptionError(Exception):
-    """Raised when encryption or decryption fails."""
-
     pass
 
 
-@lru_cache
-def _get_fernet() -> Fernet:
-    """Get cached Fernet instance.
-
-    The TOKEN_ENCRYPTION_KEY must be a 32-byte URL-safe base64-encoded key.
-    Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    """
+def _get_kms_client():
+    """Initialize the boto3 KMS client with explicit Infisical secrets."""
     settings = get_settings()
-    key = settings.TOKEN_ENCRYPTION_KEY
-
-    if key == "default-for-local":
-        # Fail fast in production - encryption key must be explicitly set
-        if settings.is_publicly_deployed:
-            raise EncryptionError(
-                "TOKEN_ENCRYPTION_KEY must be set in production. "
-                "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
-            )
-        # Generate a deterministic key for local development only
-        logger.warning("Using default encryption key - NOT FOR PRODUCTION USE")
-        # Use a fixed key for local dev so tokens remain decryptable across restarts
-        key = "local-dev-key-not-for-production-use="
-        # Pad to 32 bytes and base64 encode for Fernet
-        import base64
-
-        key = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b"=")).decode()
-
-    try:
-        return Fernet(key.encode() if isinstance(key, str) else key)
-    except Exception as e:
-        logger.error("Invalid TOKEN_ENCRYPTION_KEY format: %s", e)
-        raise EncryptionError("Invalid encryption key configuration")
+    
+    # Explicitly pass the custom named credentials to boto3
+    return boto3.client(
+        'kms',
+        region_name=settings.AWS_DATABASE_REGION,
+        aws_access_key_id=settings.AWS_KMS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_KMS_SECRET_ACCESS_KEY
+    )
 
 
 def encrypt_token(plaintext: str) -> str:
-    """Encrypt a token string.
-
-    Args:
-        plaintext: The token to encrypt
-
-    Returns:
-        Base64-encoded encrypted token
-
-    Raises:
-        EncryptionError: If encryption fails
-    """
+    import boto3
+    from botocore.exceptions import ClientError
+    """Encrypt a token by sending it directly to AWS KMS."""
     if not plaintext:
         raise EncryptionError("Cannot encrypt empty token")
 
+    settings = get_settings()
+    
+    if not settings.is_publicly_deployed or settings.AWS_KMS_KEY_ARN == "default-for-local":
+        return f"local_enc_{plaintext}"
+
     try:
-        fernet = _get_fernet()
-        encrypted = fernet.encrypt(plaintext.encode("utf-8"))
-        return encrypted.decode("utf-8")
-    except EncryptionError:
-        raise
-    except Exception as e:
-        logger.error("Encryption failed: %s", type(e).__name__)
-        raise EncryptionError("Failed to encrypt token")
+        kms = _get_kms_client()
+        response = kms.encrypt(
+            KeyId=settings.AWS_KMS_KEY_ARN,
+            Plaintext=plaintext.encode("utf-8")
+        )
+        return base64.b64encode(response["CiphertextBlob"]).decode("utf-8")
+    except ClientError as e:
+        logger.error("AWS KMS Encryption failed: %s", e.response['Error']['Code'])
+        raise EncryptionError("Failed to encrypt token via KMS")
 
 
 def decrypt_token(ciphertext: str) -> str:
-    """Decrypt an encrypted token.
-
-    Args:
-        ciphertext: Base64-encoded encrypted token
-
-    Returns:
-        Decrypted token string
-
-    Raises:
-        EncryptionError: If decryption fails (invalid key, corrupted data, etc.)
-    """
+    """Decrypt a token by sending the ciphertext to AWS KMS."""
     if not ciphertext:
         raise EncryptionError("Cannot decrypt empty ciphertext")
 
+    settings = get_settings()
+
+    if not settings.is_publicly_deployed and ciphertext.startswith("local_enc_"):
+        return ciphertext.replace("local_enc_", "")
+
     try:
-        fernet = _get_fernet()
-        decrypted = fernet.decrypt(ciphertext.encode("utf-8"))
-        return decrypted.decode("utf-8")
-    except InvalidToken:
-        logger.error("Decryption failed: invalid token or wrong key")
-        raise EncryptionError("Failed to decrypt token - invalid key or corrupted data")
-    except EncryptionError:
-        raise
-    except Exception as e:
-        logger.error("Decryption failed: %s", type(e).__name__)
-        raise EncryptionError("Failed to decrypt token")
+        kms = _get_kms_client()
+        ciphertext_bytes = base64.b64decode(ciphertext)
+        
+        response = kms.decrypt(
+            CiphertextBlob=ciphertext_bytes,
+            KeyId=settings.AWS_KMS_KEY_ARN
+        )
+        return response["Plaintext"].decode("utf-8")
+    except ClientError as e:
+        logger.error("AWS KMS Decryption failed: %s", e.response['Error']['Code'])
+        raise EncryptionError("Failed to decrypt token via KMS")

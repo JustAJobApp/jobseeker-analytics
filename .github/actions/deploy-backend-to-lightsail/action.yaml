@@ -197,7 +197,10 @@ runs:
       APP_URL: ${{ inputs.app-url }}
       API_URL: ${{ inputs.api-url }}
       ORIGIN: ${{ inputs.origin }}
-      TOKEN_ENCRYPTION_KEY: ${{ inputs.token-encryption-key }}
+      AWS_KMS_KEY_ARN: ${{ inputs.aws-kms-key-arn }}
+      AWS_KMS_SECRET_ACCESS_KEY: ${{ inputs.aws-kms-secret-access-key }}
+      AWS_KMS_ACCESS_KEY_ID: ${{ inputs.aws-kms-access-key-id }}
+      AWS_DATABASE_REGION: ${{ inputs.aws-database-region }}
     shell: bash
     run: |
       # Mask env vars before use
@@ -212,7 +215,10 @@ runs:
       echo "::add-mask::${DATABASE_URL}"
       echo "::add-mask::${APP_URL}"
       echo "::add-mask::${API_URL}"
-      echo "::add-mask::${TOKEN_ENCRYPTION_KEY}"
+      echo "::add-mask::${AWS_KMS_KEY_ARN}"
+      echo "::add-mask::${AWS_DATABASE_REGION}"
+      echo "::add-mask::${AWS_KMS_ACCESS_KEY_ID}"
+      echo "::add-mask::${AWS_KMS_SECRET_ACCESS_KEY}"
 
       # Deploy to Lightsail using inline JSON
       aws lightsail create-container-service-deployment \
@@ -236,7 +242,10 @@ runs:
               \"ENV\": \"prod\",
               \"DATABASE_URL\": \"${DATABASE_URL}\",
               \"ORIGIN\": \"${ORIGIN}\",
-              \"TOKEN_ENCRYPTION_KEY\": \"${TOKEN_ENCRYPTION_KEY}\"
+              \"AWS_KMS_ACCESS_KEY_ID\": \"${AWS_KMS_ACCESS_KEY_ID}\",
+              \"AWS_KMS_SECRET_ACCESS_KEY\": \"${AWS_KMS_SECRET_ACCESS_KEY}\",
+              \"AWS_KMS_KEY_ARN\": \"${AWS_KMS_KEY_ARN}\",
+              \"AWS_DATABASE_REGION\": \"${AWS_DATABASE_REGION}\"
             },
             \"ports\": {
               \"${CONTAINER_PORT}\": \"HTTP\"

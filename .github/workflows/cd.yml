@@ -64,6 +64,7 @@ jobs:
       with:
         aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
         aws-region: ${{ env.AWS_REGION }}
+        aws-database-region: ${{ env.AWS_DATABASE_REGION }}
         aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
         google-credentials-file-content: ${{ env.GOOGLE_CREDENTIALS_FILE_CONTENT }}
         ls-database-name: ${{ env.AWS_DATABASE_NAME }}
@@ -78,7 +79,9 @@ jobs:
         google-client-secret: ${{ env.GOOGLE_CLIENT_SECRET }}
         google-client-redirect-uri: ${{ env.GOOGLE_CLIENT_REDIRECT_URI }}
         origin: ${{ env.ORIGIN }}
-        token-encryption-key: ${{ env.TOKEN_ENCRYPTION_KEY }}
+        aws-kms-key-arn: ${{ env.AWS_KMS_KEY_ARN }}
+        aws-kms-access-key-id: ${{ env.AWS_KMS_ACCESS_KEY_ID }}
+        aws-kms-secret-access-key: ${{ env.AWS_KMS_SECRET_ACCESS_KEY }}
 
   deploy-frontend:
     name: Deploy Frontend

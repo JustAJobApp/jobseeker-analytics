@@ -166,7 +166,9 @@ aws lightsail create-container-service-deployment \
         "GOOGLE_CLIENT_REDIRECT_URI": "'"${GOOGLE_CLIENT_REDIRECT_URI}"'",
         "STRIPE_SECRET_KEY": "'"${STRIPE_SECRET_KEY}"'",
         "STRIPE_WEBHOOK_SECRET": "'"${STRIPE_WEBHOOK_SECRET}"'",
-        "TOKEN_ENCRYPTION_KEY": "'"${TOKEN_ENCRYPTION_KEY}"'",
+        "AWS_KMS_SECRET_ACCESS_KEY": "'"${AWS_KMS_SECRET_ACCESS_KEY}"'",
+        "AWS_KMS_ACCESS_KEY_ID": "'"${AWS_KMS_ACCESS_KEY_ID}"'",
+        "AWS_KMS_KEY_ARN": "'"${AWS_KMS_KEY_ARN}"'",
         "APP_URL": "'"${APP_URL}"'",
         "API_URL": "'"${API_URL}"'",
         "ORIGIN": "'"${ORIGIN}"'",
@@ -620,9 +622,11 @@ All production secrets are securely managed and stored in Infisical under the pr
 | `NEXT_PUBLIC_API_URL` | Routing | N/A (config) |
 | `AWS_DATABASE_REGION` | AWS region | N/A (config) |
 | `AWS_DATABASE_NAME` | AWS region | N/A (config) |
+| `AWS_KMS_ACCESS_KEY_ID` | AWS KMS | N/A (config) |
+| `AWS_KMS_SECRET_ACCESS_KEY` | AWS KMS | N/A (config) |
+| `AWS_KMS_KEY_ARN` | AWS KMS | N/A (config) |
 | `DATABASE_URL` | Storage | N/A (only if new database is created or restored from backup) |
 | `COOKIE_SECRET` | Session signing | Annual |
-| `TOKEN_ENCRYPTION_KEY` | OAuth token encryption | Annual |
 | `GOOGLE_CLIENT_ID` | OAuth client | As needed |
 | `GOOGLE_CLIENT_SECRET` | OAuth client | As needed |
 | `GOOGLE_CLIENT_REDIRECT_URI` | OAuth client | As needed |
