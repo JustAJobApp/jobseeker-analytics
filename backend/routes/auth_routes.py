@@ -135,7 +135,7 @@ async def login(
 
         existing_user, last_fetched_date = user_exists(user, db_session)
 
-        # Only persist credentials to DB for premium users (data minimization)
+        # Persist credentials to DB, not insecure browser storage
         if existing_user:
             old_creds = load_credentials(db_session, user.user_id, credential_type="primary", auto_refresh=False)
             creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)

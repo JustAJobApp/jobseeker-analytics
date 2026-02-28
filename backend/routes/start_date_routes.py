@@ -84,7 +84,6 @@ async def update_start_date(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    user = db_session.get(Users, user_id)
     should_auto_refresh = is_premium_eligible(db_session, user) if user else False
     
     creds = load_credentials(db_session, user_id, credential_type="primary", auto_refresh=should_auto_refresh)
