@@ -3,8 +3,10 @@
 import base64
 import logging
 
-from utils.config_utils import get_settings
+import boto3
+from botocore.exceptions import ClientError
 
+from utils.config_utils import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,6 @@ def _get_kms_client():
 
 
 def encrypt_token(plaintext: str) -> str:
-    import boto3
-    from botocore.exceptions import ClientError
     """Encrypt a token by sending it directly to AWS KMS."""
     if not plaintext:
         raise EncryptionError("Cannot encrypt empty token")
