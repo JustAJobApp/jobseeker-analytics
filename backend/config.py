@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     IPINFO_TOKEN: str = "default-for-local"
     COOKIE_SECRET: str
-    TOKEN_ENCRYPTION_KEY: str = "default-for-local"  # Fernet key for encrypting OAuth tokens in DB
     STRIPE_SECRET_KEY: str = "sk_test_placeholder_for_dev"
     STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder_for_dev"
     ENV: str = "dev"
@@ -74,7 +73,6 @@ class Settings(BaseSettings):
             "GOOGLE_CLIENT_SECRET",       # OAuth Flow
             "GOOGLE_CLIENT_REDIRECT_URI", # OAuth Flow
             "COOKIE_SECRET",              # Session Integrity
-            "TOKEN_ENCRYPTION_KEY",       # DB Credential Security
             "DATABASE_URL",               # DB Credential Security
             "APP_URL",                    # Trusted Frontend Origin
             "API_URL",                    # Trusted Backend Origin
