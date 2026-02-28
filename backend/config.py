@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     BATCH_SIZE: int = 10000
     DEV_USER_GMAIL: str = "insert-your-email-here@gmail.com"
     DEV_USER_IS_ACTIVE: bool = True
+    AWS_KMS_ACCESS_KEY_ID: str = "default-for-local"
+    AWS_KMS_SECRET_ACCESS_KEY: str = "default-for-local"
+    AWS_KMS_KEY_ARN: str = "default-for-local"
+    AWS_DATABASE_REGION: str = "default-for-local"
 
     @field_validator("GOOGLE_SCOPES", "GOOGLE_SCOPES_BASIC", mode="before")
     @classmethod
@@ -84,7 +88,10 @@ class Settings(BaseSettings):
             "GH_APP_ID",                  # GitHub App Config (Maintainer Tooling)
             "GH_INSTALLATION_ID",         # GitHub App Config (Maintainer Tooling)
             "AWS_DATABASE_NAME",          # AWS Config
-            "AWS_DATABASE_REGION"         # AWS Config
+            "AWS_DATABASE_REGION",        # AWS Config
+            "AWS_KMS_ACCESS_KEY_ID",      # AWS Config
+            "AWS_KMS_SECRET_ACCESS_KEY",  # AWS Config
+            "AWS_KMS_KEY_ARN",            # AWS Config
         ]
         
         # Build a sorted dictionary to ensure the hash is consistent every time

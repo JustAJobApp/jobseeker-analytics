@@ -1,13 +1,16 @@
 # app/session/session_layer.py
+from datetime import datetime, timezone
+from fastapi import Request, Response
+from google.oauth2.credentials import Credentials
 import json
 import logging
 import secrets
-from datetime import datetime, timezone
-from fastapi import Request, Response
-from utils.config_utils import get_settings
+from sqlmodel import select
+
 import database
 from db.users import Users
-from sqlmodel import select
+from utils.config_utils import get_settings
+from utils.credential_service import load_credentials, save_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -50,59 +53,87 @@ def validate_session(request: Request, db_session: database.DBSession) -> str:
         session_authorization = request.cookies.get("Authorization")
 
     session_id = request.session.get("session_id")
-    session_access_token = request.session.get("access_token")
-    token_exp = request.session.get("token_expiry")
+    token_exp = request.session.get("token_expiry") # Read from session, NOT db
     user_id = request.session.get("user_id")
     user_email = request.session.get("user_email")
 
-    if not session_authorization and not session_access_token:
-        logger.info(
-            "No Authorization and access_token in session, redirecting to login"
-        )
+    if not session_authorization or session_authorization != session_id:
+        logger.info("Authorization missing or does not match Session Id")
         return ""
-
-    if session_authorization != session_id:
-        logger.info("Authorization does not match Session Id, redirecting to login")
-        return ""
-
-    if is_token_expired(token_exp) or is_token_near_expiry(token_exp):
-        logger.info("Access_token expired or near expiry, attempting refresh")
-        if user_id and attempt_token_refresh(request, db_session, user_id):
-            logger.info("Token refresh succeeded for user %s", user_id)
-            # Continue with validation - token is now valid
-        else:
-            logger.info("Token refresh failed, redirecting to login")
-            return ""
-
+    
     if user_id:
-        # check that user actually exists in database first
-        logger.info("validate_session found user_id: %s", user_id)
-        db_session.expire_all()  # Clear any cached data
-        db_session.commit()  # Commit pending changes to ensure the database is in latest state
+
+        # ==========================================
+        # START SILENT MIGRATION FOR EXISTING USERS
+        # ==========================================
+        
+        # 1. Migrate Primary Credentials
+        if request.session.get("creds"):
+            existing_db_creds = load_credentials(db_session, user_id, "primary", auto_refresh=False)
+            if not existing_db_creds:
+                try:
+                    creds_dict = json.loads(request.session.get("creds"))
+                    creds_obj = Credentials.from_authorized_user_info(creds_dict)
+                    saved = save_credentials(db_session, user_id, creds_obj, "primary")
+                    if saved:
+                        logger.info("Migrated primary credentials to database for user %s", user_id)
+                    else: 
+                        logger.error("Failed to migrate primary credentials for user %s: %s", user_id)
+                except Exception as e:
+                    logger.error("Failed to migrate primary credentials for user %s: %s", user_id, e)
+            
+            # ALWAYS clean up the session cookie, even if DB save failed (fail-safe)
+            request.session.pop("creds", None)
+            request.session.pop("access_token", None)
+
+        # 2. Migrate Email Sync Credentials (if they exist)
+        if request.session.get("email_sync_creds"):
+            existing_sync_creds = load_credentials(db_session, user_id, "email_sync", auto_refresh=False)
+            if not existing_sync_creds:
+                try:
+                    sync_creds_dict = json.loads(request.session.get("email_sync_creds"))
+                    sync_creds_obj = Credentials.from_authorized_user_info(sync_creds_dict)
+                    save_credentials(db_session, user_id, sync_creds_obj, "email_sync")
+                    logger.info("Migrated email_sync credentials to database for user %s", user_id)
+                except Exception as e:
+                    logger.error("Failed to migrate email_sync credentials for user %s: %s", user_id, e)
+            
+            # ALWAYS clean up the session cookie
+            request.session.pop("email_sync_creds", None)
+            
+        # ==========================================
+        # END SILENT MIGRATION
+        # ==========================================
+
+        # 2. NOW SAFELY FETCH THE USER
+        # Load user to check premium status
+        db_session.expire_all()
+        db_session.commit()
         try:
             user = db_session.exec(select(Users).where(Users.user_email == user_email)).first()
-        except Exception as e:
+        except Exception:
+            logger.info("Unable to load user")
             request.session.clear()
-            logger.error("Exception during user validation for user_id %s: %s", user_id, e)
             return ""
+            
         if not user or not user.is_active:
-            # Clear session data (can't delete cookies here since we don't have response)
             request.session.clear()
-            logger.info("validate_session clearing session for inactive/missing user_id: %s", user_id)
             return ""
+
+        if is_token_expired(token_exp) or is_token_near_expiry(token_exp):
+            from utils.billing_utils import is_premium_eligible
+            if is_premium_eligible(db_session, user):
+                logger.info("Premium user token near expiry, attempting refresh")
+                if not attempt_token_refresh(request, db_session, user_id):
+                    return ""  # refresh failed
+                # Continue with validation - token is now valid
+            else:
+                logger.info("Free user token expired. Forcing re-authentication.")
+                request.session.clear()
+                return ""
 
     logger.info("Valid Session, Access granted.")
     return user_id
-
-
-def get_token_expiry(creds) -> str:
-    try:
-        token_expiry = creds.expiry.isoformat()
-    except Exception as e:
-        logger.error("Failed to parse token expiry: %s", e)
-        # Deny access by assuming the token is already expired (Fail-Closed)
-        token_expiry = datetime.now(timezone.utc).isoformat()
-    return token_expiry
 
 
 def is_token_expired(iso_expiry: str) -> bool:
@@ -139,6 +170,16 @@ def is_token_near_expiry(iso_expiry: str, threshold_minutes: int = TOKEN_REFRESH
     return True
 
 
+def get_token_expiry(creds) -> str:
+    try:
+        token_expiry = creds.expiry.isoformat()
+    except Exception as e:
+        logger.error("Failed to parse token expiry: %s", e)
+        # Deny access by assuming the token is already expired (Fail-Closed)
+        token_expiry = datetime.now(timezone.utc).isoformat()
+    return token_expiry
+
+
 def attempt_token_refresh(
     request: Request,
     db_session: database.DBSession,
@@ -163,21 +204,7 @@ def attempt_token_refresh(
 
         if creds and creds.token and creds.expiry:
             # Update session with refreshed tokens
-            request.session["access_token"] = creds.token
             request.session["token_expiry"] = get_token_expiry(creds)
-
-            # Update stored creds in session for backup
-            creds_dict = {
-                "token": creds.token,
-                "refresh_token": creds.refresh_token,
-                "token_uri": creds.token_uri,
-                "client_id": creds.client_id,
-                "scopes": list(creds.scopes) if creds.scopes else []
-            }
-            request.session["creds"] = json.dumps(creds_dict)
-
-            logger.info("Successfully refreshed token for user %s using %s credentials",
-                       user_id, cred_type)
             return True
 
     logger.warning("Token refresh failed for user %s - no valid credentials found", user_id)

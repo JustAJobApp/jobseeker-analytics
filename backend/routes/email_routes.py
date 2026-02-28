@@ -180,8 +180,7 @@ async def start_processing(
     try:
         creds = get_credentials_for_background_task(
             db_session,
-            user_id,
-            session_creds_json=request.session.get("creds"),
+            user_id
         )
 
         if not creds:
@@ -198,7 +197,11 @@ async def start_processing(
                 detail="gmail_scope_missing"
             )
 
-        auth_user = AuthenticatedUser(creds)
+        auth_user = AuthenticatedUser(
+            creds, 
+            _user_id=user.user_id, 
+            _user_email=user.user_email
+        )
 
         # Get the last email date for incremental fetching
         last_updated = get_last_email_date(user_id, db_session)

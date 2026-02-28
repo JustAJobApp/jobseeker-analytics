@@ -4,15 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlmodel import select
 from google_auth_oauthlib.flow import Flow
+import secrets
 import time
 
 from db.utils.user_utils import user_exists
 from utils.auth_utils import AuthenticatedUser, get_google_authorization_url, get_refresh_token_status, get_creds, get_latest_refresh_token
-from session.session_layer import create_random_session_string, validate_session, get_token_expiry, clear_session
+from session.session_layer import clear_session, create_random_session_string, get_token_expiry, validate_session
+from utils.billing_utils import is_premium_eligible
 from utils.config_utils import get_settings
 from utils.cookie_utils import set_conditional_cookie
-from utils.credential_service import save_credentials
-from utils.billing_utils import is_premium_eligible
+from utils.credential_service import load_credentials, save_credentials
 from utils.redirect_utils import Redirects
 from routes.email_routes import fetch_emails_to_db
 import database
@@ -81,7 +82,6 @@ async def login(
             # Check if we have a refresh token (DB first, then session fallback)
             session_user_id = request.session.get("user_id")
             has_refresh_token = get_refresh_token_status(
-                session_creds=request.session.get("creds"),
                 db_session=db_session,
                 user_id=session_user_id,
             )
@@ -102,7 +102,7 @@ async def login(
         saved_state = request.session.pop("oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected: session state mismatch or missing.")
             # 1. Build the error response
             response = Redirects.to_error("session_mismatch")
@@ -126,19 +126,21 @@ async def login(
         # Set session details
         request.session["token_expiry"] = get_token_expiry(creds)
         request.session["user_id"] = user.user_id
+        
         if user.user_email:
             request.session["user_email"] = user.user_email
-        request.session["access_token"] = creds.token
-        request.session["creds"] = get_latest_refresh_token(old_creds=request.session.get("creds"), new_creds=creds)
+        
         is_step_up = request.session.pop("is_step_up", False)
         raw_return_to = request.session.pop("return_to", None)
 
         existing_user, last_fetched_date = user_exists(user, db_session)
 
-        # Only persist credentials to DB for premium users (data minimization)
-        if existing_user and is_premium_eligible(db_session, existing_user):
+        # Persist credentials to DB, not insecure browser storage
+        if existing_user:
+            old_creds = load_credentials(db_session, user.user_id, credential_type="primary", auto_refresh=False)
+            creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)
             save_credentials(db_session, user.user_id, creds, credential_type="primary")
-            logger.info("Saved credentials for premium user %s", user.user_id)
+            logger.info("Saved/updated credentials for user %s", user.user_id)
 
         # Default to False for existing users, will be overwritten if needed
         request.session["is_new_user"] = False 
@@ -204,7 +206,7 @@ async def login(
                 response = Redirects.to_dashboard()
             else:
                 if not is_step_up:
-                    response = Redirects.to_processing()
+                    response = Redirects.to_dashboard()
                     background_tasks.add_task(
                         fetch_emails_to_db,
                         user,
@@ -287,7 +289,6 @@ async def signup(request: Request, db_session: database.DBSession):
             # Check if we have a refresh token (DB first, then session fallback)
             session_user_id = request.session.get("user_id")
             has_refresh_token = get_refresh_token_status(
-                session_creds=request.session.get("creds"),
                 db_session=db_session,
                 user_id=session_user_id,
             )
@@ -301,7 +302,7 @@ async def signup(request: Request, db_session: database.DBSession):
         saved_state = request.session.pop("oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected: session state mismatch or missing.")
             response = Redirects.to_error("session_mismatch")
             clear_session(request, response)
@@ -321,9 +322,7 @@ async def signup(request: Request, db_session: database.DBSession):
         request.session["last_login_time"] = datetime.now(timezone.utc).timestamp()
         if user.user_email:
             request.session["user_email"] = user.user_email
-        request.session["access_token"] = creds.token
-        request.session["creds"] = get_latest_refresh_token(old_creds=request.session.get("creds"), new_creds=creds)
-
+        
         existing_user, _ = user_exists(user, db_session)
 
         if existing_user and existing_user.is_active:
@@ -357,6 +356,10 @@ async def signup(request: Request, db_session: database.DBSession):
             logger.info("Created new user_id: %s through signup flow", user.user_id)
             request.session["is_new_user"] = True
             response = Redirects.to_onboarding()
+        
+        old_creds = load_credentials(db_session, user.user_id, credential_type="primary", auto_refresh=False)
+        latest_creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)
+        save_credentials(db_session, user.user_id, latest_creds, credential_type="primary")
 
         response = set_conditional_cookie(
             key="Authorization", value=session_id, response=response
@@ -399,9 +402,9 @@ async def email_sync_auth(
 
             # Check for email_sync credentials (DB first, then session fallback)
             has_refresh_token = get_refresh_token_status(
-                session_creds=request.session.get("email_sync_creds"),
                 db_session=db_session,
                 user_id=user_id,
+                credential_type="email_sync"
             )
             authorization_url, state = get_google_authorization_url(
                 flow, has_refresh_token
@@ -413,7 +416,7 @@ async def email_sync_auth(
         saved_state = request.session.pop("email_sync_oauth_state", None)
         query_params_state = request.query_params.get("state")
 
-        if not saved_state or saved_state != query_params_state:
+        if not saved_state or not secrets.compare_digest(saved_state, query_params_state):
             logger.error("CSRF attack detected in email sync: session state mismatch or missing.")
             return Redirects.to_error("session_mismatch")
 
@@ -428,47 +431,55 @@ async def email_sync_auth(
             return creds
 
         # Create AuthenticatedUser for the email sync account (may be different from signup account)
-        sync_user = AuthenticatedUser(creds)
+        initial_sync_user = AuthenticatedUser(creds)
 
-        # Store email sync credentials separately
-        request.session["email_sync_creds"] = get_latest_refresh_token(
-            old_creds=request.session.get("email_sync_creds"),
-            new_creds=creds
+        user = db_session.exec(select(Users).where(Users.user_id == user_id)).first()
+        if not user:
+            return Redirects.to_error("auth_required")
+
+        old_creds_from_db = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=False)
+        creds_to_save = get_latest_refresh_token(old_creds=old_creds_from_db, new_creds=creds)
+        save_credentials(db_session, user_id, creds_to_save, credential_type="email_sync")
+        # Update user record with email sync info
+        logger.info("Saved email_sync credentials for premium user %s", user_id)
+
+        # Load final credentials for the background task, refreshing if needed
+        should_auto_refresh = is_premium_eligible(db_session, user) if user else False
+        final_creds_for_task = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=should_auto_refresh)
+        
+        if not final_creds_for_task:
+             logger.error("Could not load final credentials for background task for user %s", user_id)
+             return Redirects.to_error("token_error")
+
+        # Create AuthenticatedUser for the task with final creds, reusing user info
+        sync_user_for_task = AuthenticatedUser(
+            final_creds_for_task,
+            _user_id=initial_sync_user.user_id,
+            _user_email=initial_sync_user.user_email
         )
-        # Also update main creds so email fetching works
-        request.session["creds"] = request.session["email_sync_creds"]
-        request.session["token_expiry"] = get_token_expiry(creds)
-        request.session["access_token"] = creds.token
 
         # Update user record with email sync info
-        user = db_session.exec(select(Users).where(Users.user_id == user_id)).first()
-        if user:
-            # Only persist credentials to DB for premium users (data minimization)
-            if is_premium_eligible(db_session, user):
-                save_credentials(db_session, user_id, creds, credential_type="email_sync")
-                logger.info("Saved email_sync credentials for premium user %s", user_id)
+        user.has_email_sync_configured = True
+        user.sync_email_address = initial_sync_user.user_email
+        db_session.add(user)
+        db_session.commit()
+        logger.info("Email sync configured for user_id: %s", user_id)
 
-            user.has_email_sync_configured = True
-            user.sync_email_address = sync_user.user_email
-            db_session.add(user)
-            db_session.commit()
-            logger.info("Email sync configured for user_id: %s with email: %s", user_id, sync_user.user_email)
+        # Get last fetched date for incremental sync
+        from db.utils.user_utils import get_last_email_date
+        last_fetched_date = get_last_email_date(user_id, db_session)
 
-            # Get last fetched date for incremental sync
-            from db.utils.user_utils import get_last_email_date
-            last_fetched_date = get_last_email_date(user_id, db_session)
+        # Trigger email fetch in background
+        background_tasks.add_task(
+            fetch_emails_to_db,
+            sync_user_for_task,
+            request,
+            last_fetched_date,
+            user_id=user_id,
+        )
+        logger.info("fetch_emails_to_db task started for user_id: %s", user_id)
 
-            # Trigger email fetch in background
-            background_tasks.add_task(
-                fetch_emails_to_db,
-                sync_user,
-                request,
-                last_fetched_date,
-                user_id=user_id,
-            )
-            logger.info("fetch_emails_to_db task started for user_id: %s", user_id)
-
-        response = Redirects.to_processing()
+        response = Redirects.to_dashboard()
         return response
 
     except Exception as e:

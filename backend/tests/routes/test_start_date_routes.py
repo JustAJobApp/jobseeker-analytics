@@ -1,8 +1,7 @@
 # backend/tests/routes/test_start_date_routes.py
-import json
 from unittest import mock
 from sqlmodel import Session
-
+from google.oauth2.credentials import Credentials
 
 def test_set_start_date(db_session: Session, logged_in_client, logged_in_user):
     """
@@ -15,16 +14,12 @@ def test_set_start_date(db_session: Session, logged_in_client, logged_in_user):
     db_session.refresh(logged_in_user)
     assert logged_in_user.start_date is None
 
-    # 2. User is prompted to set their start date using PUT /settings/start-date
-    # Mock session to have credentials (required by the endpoint for potential rescan)
-    mock_creds = json.dumps({"token": "mock_token", "refresh_token": "mock_refresh"})
     start_date_str = "2024-05-10"
 
-    with mock.patch(
-        "starlette.requests.Request.session",
-        new_callable=mock.PropertyMock,
-        return_value={"creds": mock_creds},
-    ):
+    # Mock load_credentials instead of the session cookie
+    mock_creds = Credentials(token="mock_token", refresh_token="mock_refresh")
+
+    with mock.patch("routes.start_date_routes.load_credentials", return_value=mock_creds):
         response = logged_in_client.put(
             "/settings/start-date",
             json={"preset": "custom", "custom_date": start_date_str},

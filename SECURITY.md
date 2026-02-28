@@ -375,8 +375,7 @@ sequenceDiagram
 
 | Data | Method | Key Management |
 |------|--------|----------------|
-| OAuth tokens (DB) | Fernet symmetric | `TOKEN_ENCRYPTION_KEY` env var |
-| Session data | Starlette session middleware | `SECRET_KEY` env var |
+| OAuth tokens (DB) | Symmetric AWS KMS | `AWS_KMS_*` env var |
 
 ---
 
@@ -388,7 +387,7 @@ All sensitive data is classified into protection levels with corresponding secur
 
 | Level | Description | Examples |
 |-------|-------------|----------|
-| **CRITICAL** | Encryption keys, API secrets | `TOKEN_ENCRYPTION_KEY`, `STRIPE_SECRET_KEY` |
+| **CRITICAL** | Encryption keys, API secrets | `AWS_KMS_`, `STRIPE_SECRET_KEY` |
 | **HIGH** | OAuth tokens, credentials | Refresh tokens, access tokens |
 | **MEDIUM** | PII (emails, payment IDs) | User email, Stripe customer ID |
 | **LOW** | Application metadata | Company name, job title, application status |
@@ -419,7 +418,7 @@ Each classification level has specific requirements across five security dimensi
 | Level | At Rest | In Transit | Key Management |
 |-------|---------|------------|----------------|
 | **CRITICAL** | Never stored in database | TLS (1.2 preferred) | Stored in environment variables or secrets manager |
-| **HIGH** | Fernet symmetric encryption (AES-128-CBC + HMAC-SHA256) | TLS (1.2 preferred) | `TOKEN_ENCRYPTION_KEY` env var |
+| **HIGH** | Fernet symmetric encryption (AES-128-CBC + HMAC-SHA256) | TLS (1.2 preferred) | `AWS_KMS_*` env var |
 | **MEDIUM** | Database-level encryption (if available) | TLS (1.2 preferred) | Managed by database provider |
 | **LOW** | None required | TLS (1.2 preferred) | N/A |
 | **PUBLIC** | None required | TLS recommended | N/A |
@@ -467,7 +466,7 @@ These values are **never stored in the database or logs**. Production deployment
 
 | Data | Storage | Protection | Config Location |
 |------|---------|------------|-----------------|
-| `TOKEN_ENCRYPTION_KEY` | Environment variable | Fernet key for OAuth token encryption | `config.py:19` |
+| `AWS_KMS_*` | Environment variable | Related keys for OAuth token encryption | `config.py:19` |
 | `COOKIE_SECRET` | Environment variable | Session cookie signing | `config.py:18` |
 | `GOOGLE_CLIENT_SECRET` | Environment variable | OAuth2 client authentication | `config.py:14` |
 | `STRIPE_SECRET_KEY` | Environment variable | Payment API authentication | `config.py:20` |
@@ -478,7 +477,7 @@ These values are **never stored in the database or logs**. Production deployment
 **Controls:**
 - Stored only in environment variables or GitHub Secrets
 - Never committed to version control (`.env` in `.gitignore`)
-- Production fails fast if `TOKEN_ENCRYPTION_KEY` is default value
+- Production fails fast if `AWS_KMS_*` is default value
 - Rotatable without code changes
 
 ---
@@ -745,7 +744,7 @@ graph LR
 |-----------------|--------------|
 | AWS Credentials | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CREDENTIALS_FILE_CONTENT` |
-| Encryption | `TOKEN_ENCRYPTION_KEY`, `COOKIE_SECRET` |
+| Encryption | `AWS_KMS_`, `COOKIE_SECRET` |
 | External Services | `STRIPE_SECRET_KEY`, `GOOGLE_API_KEY`, `IPINFO_TOKEN` |
 | GitHub App | `GH_APP_ID`, `GH_PRIVATE_KEY`, `GH_INSTALLATION_ID` |
 | Analytics | `NEXT_PUBLIC_POSTHOG_KEY` |
