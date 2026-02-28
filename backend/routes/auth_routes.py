@@ -431,7 +431,7 @@ async def email_sync_auth(
             return creds
 
         # Create AuthenticatedUser for the email sync account (may be different from signup account)
-        sync_user = AuthenticatedUser(creds)
+        initial_sync_user = AuthenticatedUser(creds)
 
         user = db_session.exec(select(Users).where(Users.user_id == user_id)).first()
         if not user:
@@ -443,15 +443,30 @@ async def email_sync_auth(
 
         should_auto_refresh = is_premium_eligible(db_session, user) if user else False
 
-        old_creds = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=should_auto_refresh)
-        creds = get_latest_refresh_token(old_creds=old_creds, new_creds=creds)
-
+        old_creds_from_db = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=False)
+        creds_to_save = get_latest_refresh_token(old_creds=old_creds_from_db, new_creds=creds)
+        save_credentials(db_session, user_id, creds_to_save, credential_type="email_sync")
         # Update user record with email sync info
-        save_credentials(db_session, user_id, creds, credential_type="email_sync")
         logger.info("Saved email_sync credentials for premium user %s", user_id)
 
+        # Load final credentials for the background task, refreshing if needed
+        should_auto_refresh = is_premium_eligible(db_session, user)
+        final_creds_for_task = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=should_auto_refresh)
+        
+        if not final_creds_for_task:
+             logger.error("Could not load final credentials for background task for user %s", user_id)
+             return Redirects.to_error("token_error")
+
+        # Create AuthenticatedUser for the task with final creds, reusing user info
+        sync_user_for_task = AuthenticatedUser(
+            final_creds_for_task,
+            _user_id=initial_sync_user.user_id,
+            _user_email=initial_sync_user.user_email
+        )
+
+        # Update user record with email sync info
         user.has_email_sync_configured = True
-        user.sync_email_address = sync_user.user_email
+        user.sync_email_address = initial_sync_user.user_email
         db_session.add(user)
         db_session.commit()
         logger.info("Email sync configured for user_id: %s", user_id)
@@ -463,7 +478,7 @@ async def email_sync_auth(
         # Trigger email fetch in background
         background_tasks.add_task(
             fetch_emails_to_db,
-            sync_user,
+            sync_user_for_task,
             request,
             last_fetched_date,
             user_id=user_id,
