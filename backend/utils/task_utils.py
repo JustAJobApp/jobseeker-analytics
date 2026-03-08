@@ -1,11 +1,29 @@
 from db import processing_tasks as task_models
+from sqlalchemy import func
 from sqlmodel import select
 import logging
+from typing import Optional
 from utils.config_utils import get_settings
 
 # Logger setup
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+def get_lifetime_processed_count(user_id: str, db_session) -> int:
+    """Calculates total emails processed across all time for a user."""
+    total = db_session.exec(
+        select(func.sum(task_models.TaskRuns.processed_emails))
+        .where(task_models.TaskRuns.user_id == user_id)
+    ).one()
+    return total or 0
+
+def get_active_task(user_id: str, db_session) -> Optional[task_models.TaskRuns]:
+    """Checks if a task is currently in 'started' status."""
+    return db_session.exec(
+        select(task_models.TaskRuns)
+        .where(task_models.TaskRuns.user_id == user_id)
+        .where(task_models.TaskRuns.status == task_models.STARTED)
+    ).first()
 
 def processed_emails_exceeds_rate_limit(user_id, db_session):
     logger.info(f"Fetching processed task count for user_id: {user_id}")
@@ -39,8 +57,9 @@ def processed_emails_exceeds_rate_limit(user_id, db_session):
     return exceeds_rate_limit(total_processed_tasks)
 
 
-def exceeds_rate_limit(count: int):
-    rate_limit = settings.batch_size_by_env
+def exceeds_rate_limit(count: int, limit: int = None):
+    # If no limit passed, fall back to setting
+    rate_limit = limit if limit is not None else settings.batch_size_by_env
     if count >= rate_limit:
         logger.info(f"Rate limit exceeded: {count} >= {rate_limit}")
         return True
