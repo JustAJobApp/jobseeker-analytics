@@ -15,8 +15,7 @@ from utils.auth_utils import AuthenticatedUser
 from utils.billing_utils import is_premium_eligible
 from utils.credential_service import load_credentials
 from utils.tier_limits import FREE_HISTORY_DAYS
-from routes.email_routes import fetch_emails_to_db
-from start_date.storage import get_start_date_email_filter
+from routes.email_routes import fetch_emails_to_db, build_gmail_query
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -177,12 +176,14 @@ async def update_start_date(
             # Only use quick_limit during onboarding (user hasn't completed onboarding yet)
             # For existing users changing start date, do a full scan
             is_onboarding = user.onboarding_completed_at is None
+            gmail_query = build_gmail_query(None, True, effective_start.strftime("%Y/%m/%d"), user.scan_end_date)
             background_tasks.add_task(
                 fetch_emails_to_db,
                 auth_user,
                 request,
                 None,  # Force full re-scan from start_date (already set in session/DB)
                 user_id=user_id,
+                gmail_query=gmail_query,
                 quick_limit=25 if is_onboarding else None,
             )
             rescan_started = True
@@ -190,12 +191,8 @@ async def update_start_date(
         except Exception as e:
             logger.error(f"Error starting rescan for user {user_id}: {e}")
 
-    gmail_query = get_start_date_email_filter(effective_start.strftime("%Y/%m/%d"))
-    if user.scan_end_date:
-        gmail_query += f" before:{user.scan_end_date.strftime('%Y/%m/%d')}"
-
     return {
         "start_date": start_date.isoformat(),
         "rescan_started": rescan_started,
-        "gmail_query": gmail_query,
+        "gmail_query": gmail_query if rescan_started else None,
     }
