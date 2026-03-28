@@ -9,5 +9,5 @@ class UserEmails(SQLModel, table=True):
     application_status: str
     received_at: datetime
     subject: str
-    job_title: str = Field(default="")
+    job_title: str = Field(default="Unknown", nullable=True)
     email_from: str  # to avoid 'from' being a reserved key word
