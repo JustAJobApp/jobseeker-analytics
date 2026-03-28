@@ -19,7 +19,7 @@ from utils.onboarding_utils import require_onboarding_complete
 from utils.admin_utils import get_context_user_id
 import database
 from start_date.storage import get_start_date_email_filter
-from constants import QUERY_APPLIED_EMAIL_FILTER
+from constants import QUERY_APPLIED_EMAIL_FILTER, APPLIED_FILTER_PATH
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -153,6 +153,17 @@ async def processing_status(
             scan_end = scan_end.replace(tzinfo=timezone.utc)
         scan_end_date = scan_end.isoformat()
 
+    gmail_query = None
+    if status == "complete" and last_finished_task:
+        from utils.filter_utils import parse_base_filter_config
+        base_filter = parse_base_filter_config(APPLIED_FILTER_PATH)
+        after_str = last_finished_task.scan_start_date.strftime("%Y/%m/%d") if last_finished_task.scan_start_date else None
+        before_str = last_finished_task.scan_end_date.strftime("%Y/%m/%d") if last_finished_task.scan_end_date else None
+        if after_str and before_str:
+            gmail_query = f"after:{after_str} before:{before_str} -from:me -in:sent AND ({base_filter})"
+        elif after_str:
+            gmail_query = f"after:{after_str} -from:me -in:sent AND ({base_filter})"
+
     return {
         "status": status,
         "total_emails": process_task_run.total_emails or 0,
@@ -163,7 +174,7 @@ async def processing_status(
         "scan_start_date": scan_start_date,
         "scan_end_date": scan_end_date,
         "stop_reason": process_task_run.stop_reason,
-        "gmail_query": process_task_run.gmail_query,
+        "gmail_query": gmail_query,
     }
 
 
@@ -783,10 +794,6 @@ def _fetch_emails_to_db_impl(
                 end_str = existing_user.scan_end_date.strftime("%Y/%m/%d")
                 query += f" before:{end_str}"
             logger.info(f"user_id:{user_id} Fetching all emails with start date: {start_date} (full scan)")
-
-        process_task_run.gmail_query = query
-        db_session.add(process_task_run)
-        db_session.commit()
 
         messages = get_email_ids(query=query, gmail_instance=gmail_instance, user_id=user_id)
 
