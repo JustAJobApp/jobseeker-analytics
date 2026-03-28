@@ -65,7 +65,6 @@ class BackgroundEmailFetcher:
             creds = get_credentials_for_background_task(
                 self.db_session,
                 self.user_id,
-                session_creds_json=None,  # No session in background context
             )
 
             if not creds:
