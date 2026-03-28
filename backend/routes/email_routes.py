@@ -163,6 +163,7 @@ async def processing_status(
         "scan_start_date": scan_start_date,
         "scan_end_date": scan_end_date,
         "stop_reason": process_task_run.stop_reason,
+        "gmail_query": process_task_run.gmail_query,
     }
 
 
@@ -782,6 +783,10 @@ def _fetch_emails_to_db_impl(
                 end_str = existing_user.scan_end_date.strftime("%Y/%m/%d")
                 query += f" before:{end_str}"
             logger.info(f"user_id:{user_id} Fetching all emails with start date: {start_date} (full scan)")
+
+        process_task_run.gmail_query = query
+        db_session.add(process_task_run)
+        db_session.commit()
 
         messages = get_email_ids(query=query, gmail_instance=gmail_instance, user_id=user_id)
 
