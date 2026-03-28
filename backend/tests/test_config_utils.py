@@ -86,7 +86,8 @@ def test_batch_size_ends_email_processing_early(
     with patch("routes.email_routes.get_email_ids") as mock_get_email_ids:
         # Note: fetch_emails_to_db is a background task and doesn't return a value
         fetch_emails_to_db(
-            mock_authenticated_user, request=mock_request, user_id=user.user_id
+            mock_authenticated_user, request=mock_request, user_id=user.user_id,
+            gmail_query="after:2026/01/01 -from:me -in:sent AND (subject:interview)",
         )
         # The get_email_ids function should not be called because we return early due to batch size limit
         assert mock_get_email_ids.call_count == 0

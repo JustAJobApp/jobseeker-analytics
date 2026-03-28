@@ -18,8 +18,8 @@ from session.session_layer import validate_session
 from utils.onboarding_utils import require_onboarding_complete
 from utils.admin_utils import get_context_user_id
 import database
-from start_date.storage import get_start_date_email_filter
-from constants import QUERY_APPLIED_EMAIL_FILTER
+from constants import APPLIED_FILTER_PATH
+from utils.filter_utils import parse_base_filter_config
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -252,10 +252,14 @@ async def start_processing(
         db_session.refresh(process_task_run)
         task_run_id = process_task_run.id
 
-        background_tasks.add_task(fetch_emails_to_db, auth_user, request, last_updated, user_id=user_id, task_run_id=task_run_id)
+        start_date = request.session.get("start_date")
+        start_date_updated = request.session.get("start_date_updated")
+        gmail_query = build_gmail_query(last_updated, start_date_updated, start_date, user.scan_end_date)
+
+        background_tasks.add_task(fetch_emails_to_db, auth_user, request, last_updated, user_id=user_id, gmail_query=gmail_query, task_run_id=task_run_id)
 
         logger.info(f"Manual scan started for user {user_id}")
-        return {"message": "Processing started"}
+        return {"message": "Processing started", "gmail_query": gmail_query}
     except HTTPException:
         # Re-raise HTTP exceptions (like gmail_scope_missing) as-is
         raise
@@ -310,6 +314,7 @@ class EmailPreviewResponse(BaseModel):
     emails: list[EmailPreviewItem]
     total_count: int
     limited: bool
+    gmail_query: str
 
 
 def get_email_metadata(message_id: str, gmail_instance):
@@ -474,7 +479,8 @@ async def preview_emails(
     return EmailPreviewResponse(
         emails=preview_emails,
         total_count=total_count,
-        limited=limited
+        limited=limited,
+        gmail_query=query,
     )
 
 
@@ -616,18 +622,39 @@ async def delete_email(request: Request, db_session: database.DBSession, email_i
         raise HTTPException(status_code=500, detail=f"Failed to delete email: {str(e)}")
         
 
+def build_gmail_query(
+    last_updated: Optional[datetime],
+    start_date_updated: bool,
+    start_date: Optional[str],
+    scan_end_date: Optional[datetime],
+) -> str:
+    base_filter = parse_base_filter_config(APPLIED_FILTER_PATH)
+    is_incremental = last_updated and not start_date_updated
+    if is_incremental:
+        after_str = last_updated.strftime("%Y/%m/%d")
+    elif start_date:
+        after_str = start_date
+    else:
+        after_str = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y/%m/%d")
+    parts = [f"after:{after_str}", "-from:me", "-in:sent", f"AND ({base_filter})"]
+    if scan_end_date:
+        parts.insert(1, f"before:{scan_end_date.strftime('%Y/%m/%d')}")
+    return " ".join(parts)
+
+
 def fetch_emails_to_db(
     user: AuthenticatedUser,
     request: Request,
     last_updated: Optional[datetime] = None,
     *,
     user_id: str,
+    gmail_query: str,
     quick_limit: Optional[int] = None,
     task_run_id: Optional[int] = None,
 ) -> None:
     logger.info(f"fetch_emails_to_db for user_id: {user_id}")
     try:
-        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, quick_limit=quick_limit, task_run_id=task_run_id)
+        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, gmail_query=gmail_query, quick_limit=quick_limit, task_run_id=task_run_id)
     except Exception as e:
         logger.error(f"Error in fetch_emails_to_db for user_id {user_id}: {e}")
         # Mark the task as cancelled so it doesn't stay stuck in "processing"
@@ -654,6 +681,7 @@ def _fetch_emails_to_db_impl(
     last_updated: Optional[datetime] = None,
     *,
     user_id: str,
+    gmail_query: str,
     quick_limit: Optional[int] = None,
     task_run_id: Optional[int] = None,
 ) -> None:
@@ -721,7 +749,6 @@ def _fetch_emails_to_db_impl(
                 start_date_updated = True
 
         logger.info(f"start_date: {start_date}")
-        start_date_query = get_start_date_email_filter(start_date)
 
         # Monthly cap enforcement
         from utils.billing_utils import get_monthly_email_cap, reset_monthly_counter_if_needed
@@ -744,8 +771,6 @@ def _fetch_emails_to_db_impl(
             monthly_cap = None
             emails_remaining = None
 
-        query = start_date_query
-        # check for users last updated email
         is_incremental_scan = last_updated and not start_date_updated
 
         # Store scan date range on the task run for historical tracking
@@ -763,22 +788,11 @@ def _fetch_emails_to_db_impl(
         else:
             process_task_run.scan_end_date = datetime.now(timezone.utc)
         db_session.commit()
+
+        query = gmail_query
         if is_incremental_scan:
-            # this converts our date time to number of seconds
-            additional_time = last_updated.strftime("%Y/%m/%d")
-            # we append it to query so we get only emails recieved after however many seconds
-            # for example, if the newest email you’ve stored was received at 2025‑03‑20 14:32 UTC, we convert that to 1710901920s
-            # and tell Gmail to fetch only messages received after March 20, 2025 at 14:32 UTC.
-            query = QUERY_APPLIED_EMAIL_FILTER
-            query += f" after:{additional_time}"
-            if existing_user and existing_user.scan_end_date:
-                end_str = existing_user.scan_end_date.strftime("%Y/%m/%d")
-                query += f" before:{end_str}"
-            logger.info(f"user_id:{user_id} Fetching emails after {additional_time} (incremental scan)")
+            logger.info(f"user_id:{user_id} Fetching emails after {last_updated.strftime('%Y/%m/%d')} (incremental scan)")
         else:
-            if existing_user and existing_user.scan_end_date:
-                end_str = existing_user.scan_end_date.strftime("%Y/%m/%d")
-                query += f" before:{end_str}"
             logger.info(f"user_id:{user_id} Fetching all emails with start date: {start_date} (full scan)")
 
         messages = get_email_ids(query=query, gmail_instance=gmail_instance, user_id=user_id)
@@ -1012,4 +1026,4 @@ def _fetch_emails_to_db_impl(
     # This is outside the db_session context to ensure clean session management
     if is_quick_scan:
         logger.info(f"user_id:{user_id} Quick scan complete, starting follow-up scan for remaining emails")
-        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, quick_limit=None)
+        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, gmail_query=gmail_query, quick_limit=None)

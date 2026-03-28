@@ -177,7 +177,6 @@ def get_email_ids(query: tuple = None, gmail_instance=None, user_id: str = None)
     page_token = None
 
     while True:
-        
         response = (
                 gmail_instance.users()
                 .messages()
