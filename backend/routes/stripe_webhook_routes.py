@@ -55,27 +55,36 @@ async def stripe_webhook(
         metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
         amount_cents_str = metadata.get("amount_cents")
-        payment_intent_id = session.get("payment_intent")
+        checkout_session_id = session.get("id")
 
         logger.info(
             f"checkout.session.completed - user_id: {user_id}, amount: {amount_cents_str}, subscription: {session.get('subscription')}"
         )
 
         if not user_id:
-            logger.error(f"Missing user_id in checkout session: {session.get('id')}")
+            logger.error(f"Missing user_id in checkout session: {checkout_session_id}")
             return {"status": "error", "message": "Missing user_id"}
 
+        # Reject sessions where payment was not collected
+        payment_status = session.get("payment_status")
+        if payment_status != "paid":
+            logger.warning(
+                f"checkout.session.completed with payment_status={payment_status!r} "
+                f"for user {user_id} — skipping"
+            )
+            return {"status": "success", "message": "No payment collected"}
+
         with database.get_session() as db_session:
-            # Idempotency check: skip if we've already processed this payment_intent
-            if payment_intent_id:
+            # Idempotency check: skip if we've already processed this checkout session
+            if checkout_session_id:
                 existing = db_session.exec(
                     select(Contributions).where(
-                        Contributions.stripe_payment_intent_id == payment_intent_id
+                        Contributions.stripe_checkout_session_id == checkout_session_id
                     )
                 ).first()
                 if existing:
                     logger.info(
-                        f"Duplicate webhook for payment_intent {payment_intent_id}, skipping"
+                        f"Duplicate webhook for checkout session {checkout_session_id}, skipping"
                     )
                     return {"status": "success", "message": "Already processed"}
 
@@ -85,22 +94,18 @@ async def stripe_webhook(
             if user:
                 subscription_id = session.get("subscription")
                 amount_total = session.get("amount_total", 0)
-                is_recurring = metadata.get("is_recurring", "true") == "true"
 
                 # Determine amount - prefer explicit amount_cents, fall back to amount_total
                 amount_cents = (
                     int(amount_cents_str) if amount_cents_str else amount_total
                 )
 
-                # Update user with contribution info
-                if is_recurring:
-                    # Recurring: set monthly contribution and subscription
-                    user.monthly_contribution_cents = amount_cents
-                    user.stripe_subscription_id = subscription_id
-                    # Update plan field if user is paying $5+/month (unless promo)
-                    if amount_cents >= PREMIUM_CONTRIBUTION_THRESHOLD_CENTS and user.plan != "promo":
-                        user.plan = "paid"
-                # One-time payments don't set monthly_contribution_cents
+                # Set monthly contribution and subscription
+                user.monthly_contribution_cents = amount_cents
+                user.stripe_subscription_id = subscription_id
+                # Update plan field if user is paying $5+/month (unless promo)
+                if amount_cents >= PREMIUM_CONTRIBUTION_THRESHOLD_CENTS and user.plan != "promo":
+                    user.plan = "paid"
 
                 if not user.contribution_started_at:
                     user.contribution_started_at = datetime.now(timezone.utc)
@@ -112,29 +117,25 @@ async def stripe_webhook(
                     user.onboarding_completed_at = datetime.now(timezone.utc)
                 db_session.add(user)
 
-                # Create contribution record with payment_intent_id for idempotency
+                # Create contribution record with checkout_session_id for idempotency
                 contribution = Contributions(
                     user_id=user_id,
-                    stripe_payment_intent_id=payment_intent_id,
-                    stripe_subscription_id=subscription_id if is_recurring else None,
+                    stripe_checkout_session_id=checkout_session_id,
+                    stripe_subscription_id=subscription_id,
                     amount_cents=amount_cents,
-                    is_recurring=is_recurring,
+                    is_recurring=True,
                     status="completed",
                     trigger_type=metadata.get("trigger_type"),
                 )
                 db_session.add(contribution)
                 db_session.commit()
 
-                # Upgrade to premium tier if recurring $5+/month contribution
-                if (
-                    is_recurring
-                    and amount_cents >= PREMIUM_CONTRIBUTION_THRESHOLD_CENTS
-                ):
+                # Upgrade to premium tier if $5+/month contribution
+                if amount_cents >= PREMIUM_CONTRIBUTION_THRESHOLD_CENTS:
                     upgrade_user_to_premium(db_session, user_id)
 
-                payment_type = "monthly" if is_recurring else "one-time"
                 logger.info(
-                    f"User {user_id} made {payment_type} contribution of ${amount_cents / 100:.2f}"
+                    f"User {user_id} made monthly contribution of ${amount_cents / 100:.2f}"
                 )
             else:
                 logger.error(f"User {user_id} not found for checkout session")
@@ -158,7 +159,7 @@ async def stripe_webhook(
                 if payment_intent_id:
                     existing = db_session.exec(
                         select(Contributions).where(
-                            Contributions.stripe_payment_intent_id == payment_intent_id
+                            Contributions.stripe_checkout_session_id == payment_intent_id
                         )
                     ).first()
                     if existing:
@@ -180,7 +181,7 @@ async def stripe_webhook(
                     # Create contribution record for recurring payment with payment_intent_id for idempotency
                     contribution = Contributions(
                         user_id=user.user_id,
-                        stripe_payment_intent_id=payment_intent_id,
+                        stripe_checkout_session_id=payment_intent_id,
                         stripe_subscription_id=subscription_id,
                         amount_cents=amount_paid,
                         is_recurring=True,

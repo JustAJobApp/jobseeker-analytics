@@ -14,7 +14,7 @@ class Contributions(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.user_id", nullable=False, index=True)
 
     # Stripe identifiers
-    stripe_payment_intent_id: Optional[str] = Field(default=None, nullable=True)
+    stripe_checkout_session_id: Optional[str] = Field(default=None, nullable=True)
     stripe_subscription_id: Optional[str] = Field(default=None, nullable=True)
 
     # Payment details

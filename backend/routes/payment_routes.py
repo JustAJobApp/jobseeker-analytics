@@ -29,7 +29,6 @@ class ValidatePromoRequest(BaseModel):
 
 class CheckoutRequest(BaseModel):
     trigger_type: Optional[str] = None
-    is_recurring: bool = True  # Default to recurring for backwards compatibility
 
 
 @router.post("/payment/validate-promo")
@@ -91,61 +90,34 @@ async def create_checkout(
             db_session.add(user)
             db_session.commit()
 
-        # Build checkout session based on payment type
-        if body.is_recurring:
-            # Recurring subscription
-            checkout_session = stripe.checkout.Session.create(
-                customer=user.stripe_customer_id,
-                mode="subscription",
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": amount_cents,
-                        "recurring": {"interval": "month"},
-                        "product_data": {"name": "JustAJobApp Monthly Contribution"}
-                    },
-                    "quantity": 1
-                }],
-                success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.APP_URL}/dashboard",
-                metadata={
-                    "user_id": user_id,
-                    "amount_cents": str(amount_cents),
-                    "trigger_type": body.trigger_type or "manual",
-                    "is_recurring": "true"
+        checkout_session = stripe.checkout.Session.create(
+            customer=user.stripe_customer_id,
+            mode="subscription",
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": amount_cents,
+                    "recurring": {"interval": "month"},
+                    "product_data": {"name": "JustAJobApp Monthly Contribution"}
                 },
-                subscription_data={
-                    "metadata": {
-                        "user_id": user_id,
-                        "amount_cents": str(amount_cents)
-                    }
-                }
-            )
-        else:
-            # One-time payment
-            checkout_session = stripe.checkout.Session.create(
-                customer=user.stripe_customer_id,
-                mode="payment",
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": amount_cents,
-                        "product_data": {"name": "JustAJobApp One-Time Contribution"}
-                    },
-                    "quantity": 1
-                }],
-                success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.APP_URL}/dashboard",
-                metadata={
+                "quantity": 1
+            }],
+            success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.APP_URL}/dashboard",
+            metadata={
+                "user_id": user_id,
+                "amount_cents": str(amount_cents),
+                "trigger_type": body.trigger_type or "manual",
+            },
+            subscription_data={
+                "metadata": {
                     "user_id": user_id,
-                    "amount_cents": str(amount_cents),
-                    "trigger_type": body.trigger_type or "manual",
-                    "is_recurring": "false"
+                    "amount_cents": str(amount_cents)
                 }
-            )
+            }
+        )
 
-        payment_type = "recurring" if body.is_recurring else "one-time"
-        logger.info(f"Created {payment_type} checkout session {checkout_session.id} for user {user_id}, amount: {amount_cents}")
+        logger.info(f"Created checkout session {checkout_session.id} for user {user_id}, amount: {amount_cents}")
         return {"checkout_url": checkout_session.url, "session_id": checkout_session.id}
 
     except stripe.error.StripeError as e:
