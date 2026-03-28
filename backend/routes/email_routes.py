@@ -19,7 +19,7 @@ from utils.onboarding_utils import require_onboarding_complete
 from utils.admin_utils import get_context_user_id
 import database
 from start_date.storage import get_start_date_email_filter
-from constants import QUERY_APPLIED_EMAIL_FILTER, APPLIED_FILTER_PATH
+from constants import QUERY_APPLIED_EMAIL_FILTER
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -153,17 +153,6 @@ async def processing_status(
             scan_end = scan_end.replace(tzinfo=timezone.utc)
         scan_end_date = scan_end.isoformat()
 
-    gmail_query = None
-    if status == "complete" and last_finished_task:
-        from utils.filter_utils import parse_base_filter_config
-        base_filter = parse_base_filter_config(APPLIED_FILTER_PATH)
-        after_str = last_finished_task.scan_start_date.strftime("%Y/%m/%d") if last_finished_task.scan_start_date else None
-        before_str = last_finished_task.scan_end_date.strftime("%Y/%m/%d") if last_finished_task.scan_end_date else None
-        if after_str and before_str:
-            gmail_query = f"after:{after_str} before:{before_str} -from:me -in:sent AND ({base_filter})"
-        elif after_str:
-            gmail_query = f"after:{after_str} -from:me -in:sent AND ({base_filter})"
-
     return {
         "status": status,
         "total_emails": process_task_run.total_emails or 0,
@@ -174,7 +163,6 @@ async def processing_status(
         "scan_start_date": scan_start_date,
         "scan_end_date": scan_end_date,
         "stop_reason": process_task_run.stop_reason,
-        "gmail_query": gmail_query,
     }
 
 
@@ -266,8 +254,18 @@ async def start_processing(
 
         background_tasks.add_task(fetch_emails_to_db, auth_user, request, last_updated, user_id=user_id, task_run_id=task_run_id)
 
+        start_date = request.session.get("start_date")
+        start_date_updated = request.session.get("start_date_updated")
+        is_incremental = last_updated and not start_date_updated
+        if is_incremental:
+            gmail_query = QUERY_APPLIED_EMAIL_FILTER + f" after:{last_updated.strftime('%Y/%m/%d')}"
+        else:
+            gmail_query = get_start_date_email_filter(start_date)
+        if user.scan_end_date:
+            gmail_query += f" before:{user.scan_end_date.strftime('%Y/%m/%d')}"
+
         logger.info(f"Manual scan started for user {user_id}")
-        return {"message": "Processing started"}
+        return {"message": "Processing started", "gmail_query": gmail_query}
     except HTTPException:
         # Re-raise HTTP exceptions (like gmail_scope_missing) as-is
         raise
