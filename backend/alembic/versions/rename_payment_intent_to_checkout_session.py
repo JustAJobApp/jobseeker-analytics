@@ -11,7 +11,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'rename_payment_intent_to_checkout_session'
+revision: str = 'checkout_session_column'
 down_revision: Union[str, None] = 'make_job_title_nullable'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

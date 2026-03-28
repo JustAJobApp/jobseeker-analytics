@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'rename_contributions_to_payments'
-down_revision: Union[str, None] = 'rename_payment_intent_to_checkout_session'
+down_revision: Union[str, None] = 'checkout_session_column'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
