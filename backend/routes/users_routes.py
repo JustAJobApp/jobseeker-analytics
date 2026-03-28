@@ -28,11 +28,11 @@ class PremiumStatusResponse(BaseModel):
 
     is_premium: bool
     premium_reason: Optional[str]  # "coach", "coach_client", "paid", or None
-    monthly_contribution_cents: int
+    monthly_price_cents: int
     has_active_subscription: bool
     has_valid_credentials: bool
     last_background_sync_at: Optional[str]
-    contribution_started_at: Optional[str]
+    subscribed_at: Optional[str]
     cancel_at_period_end: bool = False
     subscription_ends_at: Optional[int] = None  # Unix timestamp when cancelled
     subscription_renews_at: Optional[int] = None  # Unix timestamp for next renewal
@@ -113,7 +113,7 @@ async def get_premium_status(
     return PremiumStatusResponse(
         is_premium=is_premium,
         premium_reason=premium_reason,
-        monthly_contribution_cents=user.monthly_contribution_cents,
+        monthly_price_cents=user.monthly_price_cents,
         has_active_subscription=user.stripe_subscription_id is not None,
         has_valid_credentials=has_valid_credentials,
         last_background_sync_at=(
@@ -121,9 +121,9 @@ async def get_premium_status(
             if user.last_background_sync_at
             else None
         ),
-        contribution_started_at=(
-            user.contribution_started_at.isoformat()
-            if user.contribution_started_at
+        subscribed_at=(
+            user.subscribed_at.isoformat()
+            if user.subscribed_at
             else None
         ),
         cancel_at_period_end=cancel_at_period_end,
@@ -157,7 +157,7 @@ async def delete_account(
     from db.user_emails import UserEmails
     from db.processing_tasks import TaskRuns
     from db.oauth_credentials import OAuthCredentials
-    from db.contributions import Contributions
+    from db.payments import Payments
     from fastapi.responses import RedirectResponse
     from utils.config_utils import get_settings
 
@@ -222,13 +222,13 @@ async def delete_account(
         db_session.delete(cred_record)
     logger.info(f"Deleted {len(all_creds)} OAuth credentials for user {user_id}")
 
-    # Delete contributions (but keep for audit trail - mark as deleted instead)
-    contributions = db_session.exec(
-        select(Contributions).where(Contributions.user_id == user_id)
+    # Delete payment records
+    payments = db_session.exec(
+        select(Payments).where(Payments.user_id == user_id)
     ).all()
-    for contrib in contributions:
-        db_session.delete(contrib)
-    logger.info(f"Deleted {len(contributions)} contributions for user {user_id}")
+    for payment in payments:
+        db_session.delete(payment)
+    logger.info(f"Deleted {len(payments)} payment records for user {user_id}")
 
     # Delete the user record
     db_session.delete(user)

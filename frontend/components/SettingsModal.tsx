@@ -17,11 +17,11 @@ import posthog from "posthog-js";
 interface PremiumStatus {
 	is_premium: boolean;
 	premium_reason: "coach" | "coach_client" | "paid" | null;
-	monthly_contribution_cents: number;
+	monthly_price_cents: number;
 	has_active_subscription: boolean;
 	has_valid_credentials: boolean;
 	last_background_sync_at: string | null;
-	contribution_started_at: string | null;
+	subscribed_at: string | null;
 	cancel_at_period_end: boolean;
 	subscription_ends_at: number | null;
 	subscription_renews_at: number | null;
@@ -164,7 +164,7 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 			if (response.ok) {
 				const data = await response.json();
 				posthog.capture("subscription_cancelled", {
-					amount_cents: status?.monthly_contribution_cents,
+					amount_cents: status?.monthly_price_cents,
 					reason: cancelReason || "not_specified",
 					reason_other: cancelReason === "other" ? cancelReasonOther : undefined
 				});
@@ -416,7 +416,7 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.monthly_contribution_cents / 100).toFixed(0)}/month
+														${(status.monthly_price_cents / 100).toFixed(0)}/month
 													</p>
 												</div>
 												<p className="text-sm text-warning-600 dark:text-amber-400">
@@ -428,7 +428,7 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.monthly_contribution_cents / 100).toFixed(0)}/month
+														${(status.monthly_price_cents / 100).toFixed(0)}/month
 														{status.subscription_renews_at && (
 															<span className="text-foreground/50 dark:text-gray-400">
 																{" "}

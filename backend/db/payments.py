@@ -5,10 +5,10 @@ import uuid
 import sqlalchemy as sa
 
 
-class Contributions(SQLModel, table=True):
-    """Tracks payment history for user contributions."""
+class Payments(SQLModel, table=True):
+    """Tracks subscription payment history."""
 
-    __tablename__ = "contributions"
+    __tablename__ = "payments"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: str = Field(foreign_key="users.user_id", nullable=False, index=True)

@@ -3,8 +3,8 @@
 All tier-differentiated behavior should reference constants from this module
 so limits can be changed in one place.
 
-Free tier: users with monthly_contribution_cents == 0 (and not a coach/coach-client).
-Pro tier:  users contributing >= $5/month, coaches, or active coach-clients.
+Free tier: users with monthly_price_cents == 0 (and not a coach/coach-client).
+Pro tier:  users with an active $5+/month subscription, coaches, or active coach-clients.
            Determined by is_premium_eligible() in billing_utils.py.
 """
 

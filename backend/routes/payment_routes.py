@@ -127,12 +127,12 @@ async def create_checkout(
 
 @router.post("/payment/cancel")
 @limiter.limit("5/minute")
-async def cancel_contribution(
+async def cancel_subscription(
     request: Request,
     db_session: database.DBSession,
     user_id: str = Depends(validate_session)
 ):
-    """Cancel contribution subscription."""
+    """Cancel subscription."""
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -156,7 +156,7 @@ async def cancel_contribution(
             cancel_at_period_end=True
         )
 
-        # Don't clear monthly_contribution_cents yet - webhook will handle that
+        # Don't clear monthly_price_cents yet - webhook will handle that
         # when subscription actually ends
         period_end = updated_subscription.get("cancel_at")
 
