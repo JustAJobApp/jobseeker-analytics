@@ -18,8 +18,8 @@ from session.session_layer import validate_session
 from utils.onboarding_utils import require_onboarding_complete
 from utils.admin_utils import get_context_user_id
 import database
-from start_date.storage import get_start_date_email_filter
-from constants import QUERY_APPLIED_EMAIL_FILTER
+from constants import APPLIED_FILTER_PATH
+from utils.filter_utils import parse_base_filter_config
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -628,14 +628,18 @@ def build_gmail_query(
     start_date: Optional[str],
     scan_end_date: Optional[datetime],
 ) -> str:
+    base_filter = parse_base_filter_config(APPLIED_FILTER_PATH)
     is_incremental = last_updated and not start_date_updated
     if is_incremental:
-        query = QUERY_APPLIED_EMAIL_FILTER + f" after:{last_updated.strftime('%Y/%m/%d')}"
+        after_str = last_updated.strftime("%Y/%m/%d")
+    elif start_date:
+        after_str = start_date
     else:
-        query = get_start_date_email_filter(start_date)
+        after_str = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y/%m/%d")
+    parts = [f"after:{after_str}", "-from:me", "-in:sent", f"AND ({base_filter})"]
     if scan_end_date:
-        query += f" before:{scan_end_date.strftime('%Y/%m/%d')}"
-    return query
+        parts.insert(1, f"before:{scan_end_date.strftime('%Y/%m/%d')}")
+    return " ".join(parts)
 
 
 def fetch_emails_to_db(

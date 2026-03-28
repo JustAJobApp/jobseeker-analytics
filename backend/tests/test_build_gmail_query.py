@@ -11,17 +11,25 @@ The scenarios tested mirror the four real call sites:
 import re
 from datetime import datetime, timedelta, timezone
 
-from constants import QUERY_APPLIED_EMAIL_FILTER
 from routes.email_routes import build_gmail_query
+
+EXPECTED_FIXED_CLAUSES = ["-from:me", "-in:sent", "AND ("]
+
+
+def _assert_well_formed(query: str) -> None:
+    """Every query must have the fixed exclusion clauses and base filter."""
+    for clause in EXPECTED_FIXED_CLAUSES:
+        assert clause in query, f"Missing '{clause}' in query: {query}"
+    assert query.count("after:") == 1, f"Expected exactly one after: clause, got: {query}"
 
 
 # ---------------------------------------------------------------------------
 # Incremental scan
 # ---------------------------------------------------------------------------
 
-def test_incremental_scan_uses_applied_filter_plus_after_date():
-    """When last_updated is set and start_date_updated is False the query
-    should be QUERY_APPLIED_EMAIL_FILTER with the last_updated date appended."""
+def test_incremental_scan_uses_last_updated_as_sole_after_date():
+    """Incremental scan must produce exactly one after: clause using last_updated,
+    not a double after: from prepending QUERY_APPLIED_EMAIL_FILTER."""
     last_updated = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
     query = build_gmail_query(
@@ -31,12 +39,12 @@ def test_incremental_scan_uses_applied_filter_plus_after_date():
         scan_end_date=None,
     )
 
-    assert query.startswith(QUERY_APPLIED_EMAIL_FILTER)
+    _assert_well_formed(query)
     assert "after:2026/03/01" in query
     assert "before:" not in query
 
 
-def test_incremental_scan_appends_before_when_scan_end_date_set():
+def test_incremental_scan_with_end_date():
     last_updated = datetime(2026, 3, 1, tzinfo=timezone.utc)
     scan_end = datetime(2026, 3, 28, tzinfo=timezone.utc)
 
@@ -47,6 +55,7 @@ def test_incremental_scan_appends_before_when_scan_end_date_set():
         scan_end_date=scan_end,
     )
 
+    _assert_well_formed(query)
     assert "after:2026/03/01" in query
     assert "before:2026/03/28" in query
 
@@ -64,6 +73,7 @@ def test_onboarding_full_scan_from_start_date():
         scan_end_date=None,
     )
 
+    _assert_well_formed(query)
     assert "after:2026/01/15" in query
     assert "before:" not in query
 
@@ -76,6 +86,7 @@ def test_onboarding_with_scan_end_date():
         scan_end_date=datetime(2026, 3, 28, tzinfo=timezone.utc),
     )
 
+    _assert_well_formed(query)
     assert "after:2026/01/15" in query
     assert "before:2026/03/28" in query
 
@@ -104,6 +115,7 @@ def test_free_user_query_does_not_reach_beyond_30_days():
         scan_end_date=now,
     )
 
+    _assert_well_formed(query)
     after_date = _extract_after_date(query)
     # Allow one day of slack for timezone rounding
     assert after_date >= thirty_days_ago - timedelta(days=1), (
@@ -124,6 +136,7 @@ def test_free_user_query_is_bounded_on_both_ends():
         scan_end_date=now,
     )
 
+    _assert_well_formed(query)
     assert "after:" in query
     assert "before:" in query
 
@@ -145,6 +158,7 @@ def test_premium_user_can_query_beyond_30_days():
         scan_end_date=None,
     )
 
+    _assert_well_formed(query)
     after_date = _extract_after_date(query)
     thirty_days_ago = now - timedelta(days=30)
     assert after_date < thirty_days_ago, (
@@ -164,6 +178,7 @@ def test_premium_user_with_end_date():
         scan_end_date=now,
     )
 
+    _assert_well_formed(query)
     after_date = _extract_after_date(query)
     assert after_date < now - timedelta(days=30)
     assert f"before:{now.strftime('%Y/%m/%d')}" in query
