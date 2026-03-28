@@ -8,8 +8,8 @@ from db.users import Users, CoachClientLink
 
 logger = logging.getLogger(__name__)
 
-# Premium tier eligibility threshold (in cents)
-PREMIUM_CONTRIBUTION_THRESHOLD_CENTS = 500  # $5/month
+# Monthly subscription price for premium tier (in cents)
+PREMIUM_MONTHLY_PRICE_CENTS = 500  # $5/month
 
 
 def get_premium_reason(db_session, user: Users) -> str | None:
@@ -19,7 +19,7 @@ def get_premium_reason(db_session, user: Users) -> str | None:
     Returns:
         "coach" if user is a coach
         "coach_client" if user has an active coach
-        "paid" if user contributes $5+/month
+        "paid" if user has an active $5+/month subscription
         None if user doesn't qualify for premium
     """
     if user.plan == "promo":
@@ -37,7 +37,7 @@ def get_premium_reason(db_session, user: Users) -> str | None:
     if active_coach_link:
         return "coach_client"
 
-    if user.monthly_contribution_cents >= PREMIUM_CONTRIBUTION_THRESHOLD_CENTS:
+    if user.monthly_price_cents >= PREMIUM_MONTHLY_PRICE_CENTS:
         return "paid"
 
     return None
@@ -54,7 +54,7 @@ def upgrade_user_to_premium(db_session, user_id: str) -> bool:
 
     Called when:
     - CoachClientLink is created
-    - User's contribution reaches $5+/month
+    - User's subscription reaches $5+/month
 
     Returns True if upgraded, False otherwise.
     """
@@ -106,7 +106,7 @@ def downgrade_user_from_premium(db_session, user_id: str) -> bool:
 
     Called when:
     - CoachClientLink is ended
-    - User's contribution drops below $5/month
+    - User's subscription drops below $5/month
 
     Returns True if downgraded, False otherwise.
     """
