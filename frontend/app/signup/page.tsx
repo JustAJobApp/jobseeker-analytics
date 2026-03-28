@@ -34,6 +34,7 @@ const TIER_INFO: Record<string, { name: string; price: string; description: stri
 
 function SignupContent() {
 	const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+	const [marketingConsent, setMarketingConsent] = useState(false);
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
@@ -118,7 +119,18 @@ function SignupContent() {
 								Sign up with your Google account to get started. We only need your email address to
 								create your account.
 							</p>
-							<GoogleSignupButton />
+							<label className="flex items-start gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={marketingConsent}
+									onChange={(e) => setMarketingConsent(e.target.checked)}
+									className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-emerald-600"
+								/>
+								<span className="text-xs text-gray-500 dark:text-gray-400">
+									I&apos;d like to receive email updates about my account, tips, and occasional offers. You can unsubscribe at any time.
+								</span>
+							</label>
+							<GoogleSignupButton marketingConsent={marketingConsent} />
 						</div>
 
 						<div className="border-t border-gray-200 dark:border-gray-700 pt-4">

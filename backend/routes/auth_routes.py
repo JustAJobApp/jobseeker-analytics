@@ -352,6 +352,9 @@ async def signup(request: Request, db_session: database.DBSession):
     )
     try:
         if not code:
+            # Store marketing consent preference in session before OAuth redirect
+            marketing_consent = request.query_params.get("marketing_consent", "false")
+            request.session["pending_marketing_consent"] = marketing_consent == "true"
             # Check if we have a refresh token (DB first, then session fallback)
             session_user_id = request.session.get("user_id")
             has_refresh_token = get_refresh_token_status(
@@ -388,7 +391,7 @@ async def signup(request: Request, db_session: database.DBSession):
         request.session["last_login_time"] = datetime.now(timezone.utc).timestamp()
         if user.user_email:
             request.session["user_email"] = user.user_email
-        
+
         existing_user, _ = user_exists(user, db_session)
 
         if existing_user:
@@ -404,14 +407,16 @@ async def signup(request: Request, db_session: database.DBSession):
         else:
             # New user - create account and redirect to onboarding
             from db.users import Users
+            marketing_consent = request.session.pop("pending_marketing_consent", False)
             new_user = Users(
                 user_id=user.user_id,
                 user_email=user.user_email,
-                start_date=None  # Will be set later
+                start_date=None,  # Will be set later
+                marketing_email_consent=marketing_consent,
             )
             db_session.add(new_user)
             db_session.commit()
-            logger.info("Created new user_id: %s through signup flow", user.user_id)
+            logger.info("Created new user_id: %s through signup flow (marketing_consent=%s)", user.user_id, marketing_consent)
             request.session["is_new_user"] = True
             response = Redirects.to_onboarding()
         

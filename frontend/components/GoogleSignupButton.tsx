@@ -5,12 +5,16 @@ import { GoogleIcon } from "@/components/icons";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 
-const handleGoogleSignup = () => {
-	posthog.capture("signup_started", { method: "google" });
-	window.location.href = `${apiUrl}/auth/google/signup`; // Initiate OAuth with basic scopes
-};
+interface GoogleSignupButtonProps {
+	marketingConsent: boolean;
+}
 
-const GoogleSignupButton = () => {
+const GoogleSignupButton = ({ marketingConsent }: GoogleSignupButtonProps) => {
+	const handleGoogleSignup = () => {
+		posthog.capture("signup_started", { method: "google", marketing_consent: marketingConsent });
+		window.location.href = `${apiUrl}/auth/google/signup?marketing_consent=${marketingConsent}`;
+	};
+
 	return (
 		<div className="space-y-4 text-center">
 			<Button
