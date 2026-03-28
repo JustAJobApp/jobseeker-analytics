@@ -19,8 +19,7 @@ from utils.llm_utils import process_email
 from utils.task_utils import exceeds_rate_limit
 from utils.config_utils import get_settings
 from utils.credential_service import get_credentials_for_background_task
-from start_date.storage import get_start_date_email_filter
-from constants import QUERY_APPLIED_EMAIL_FILTER
+from routes.email_routes import build_gmail_query
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -117,37 +116,17 @@ class BackgroundEmailFetcher:
             return
 
         # Get start_date from DB instead of session
-        start_date = self._get_start_date_from_db()
-        start_date_query = get_start_date_email_filter(start_date)
-
-        # Check if start_date was updated
-        start_date_updated = False
         if not self.user:
             self._load_user()
-        if (
-            self.user
-            and self.user.start_date
-            and start_date != self.user.start_date.strftime("%Y/%m/%d")
-        ):
-            start_date_updated = True
+        start_date = self._get_start_date_from_db()
 
-        # Build query
-        query = start_date_query
-        if last_updated and not start_date_updated:
-            additional_time = last_updated.strftime("%Y/%m/%d")
-            query = QUERY_APPLIED_EMAIL_FILTER
-            query += f" after:{additional_time}"
-            logger.info(
-                "user_id:%s Background fetch after %s",
-                self.user_id,
-                additional_time,
-            )
-        else:
-            logger.info(
-                "user_id:%s Background fetch all emails since start_date: %s",
-                self.user_id,
-                start_date,
-            )
+        query = build_gmail_query(
+            last_updated=last_updated,
+            start_date_updated=False,
+            start_date=start_date,
+            scan_end_date=self.user.scan_end_date if self.user else None,
+        )
+        logger.info("user_id:%s Background fetch query: %s", self.user_id, query)
 
         messages = get_email_ids(
             query=query,

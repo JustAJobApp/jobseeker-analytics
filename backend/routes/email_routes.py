@@ -749,7 +749,6 @@ def _fetch_emails_to_db_impl(
                 start_date_updated = True
 
         logger.info(f"start_date: {start_date}")
-        start_date_query = get_start_date_email_filter(start_date)
 
         # Monthly cap enforcement
         from utils.billing_utils import get_monthly_email_cap, reset_monthly_counter_if_needed
