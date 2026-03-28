@@ -97,6 +97,9 @@ def get_email_content(email_data: Dict[str, Any]) -> str:
 def get_email(message_id: str, gmail_instance=None, user_email: str = None):
     if gmail_instance:
         try:
+            gmail_api_query_params = {"userId": "me", "id": message_id, "format": "raw"}
+            print(f"[Gmail API] messages.get — params:{gmail_api_query_params}", flush=True)
+            logger.info(f"[Gmail API] messages.get — params:{gmail_api_query_params}")
             message = (
                 gmail_instance.users()
                 .messages()
@@ -177,7 +180,15 @@ def get_email_ids(query: tuple = None, gmail_instance=None, user_id: str = None)
     page_token = None
 
     while True:
-        
+        gmail_api_query_params = {
+            "userId": "me",
+            "q": query,
+            "includeSpamTrash": True,
+            "pageToken": page_token,
+        }
+        print(f"[Gmail API] messages.list — user_id:{user_id} params:{gmail_api_query_params}", flush=True)
+        logger.info(f"[Gmail API] messages.list — user_id:{user_id} params:{gmail_api_query_params}")
+
         response = (
                 gmail_instance.users()
                 .messages()

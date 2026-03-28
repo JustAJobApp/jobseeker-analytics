@@ -315,6 +315,14 @@ class EmailPreviewResponse(BaseModel):
 def get_email_metadata(message_id: str, gmail_instance):
     """Fetch only email metadata (headers) without the body content."""
     try:
+        gmail_api_query_params = {
+            "userId": "me",
+            "id": message_id,
+            "format": "metadata",
+            "metadataHeaders": ["From", "Subject", "Date"],
+        }
+        print(f"[Gmail API] messages.get (metadata) — params:{gmail_api_query_params}", flush=True)
+        logger.info(f"[Gmail API] messages.get (metadata) — params:{gmail_api_query_params}")
         message = (
             gmail_instance.users()
             .messages()
