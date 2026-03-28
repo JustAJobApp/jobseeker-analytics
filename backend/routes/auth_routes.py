@@ -16,7 +16,7 @@ from utils.config_utils import get_settings
 from utils.cookie_utils import set_conditional_cookie
 from utils.credential_service import load_credentials, save_credentials
 from utils.redirect_utils import Redirects
-from routes.email_routes import fetch_emails_to_db
+from routes.email_routes import fetch_emails_to_db, build_gmail_query
 import database
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -208,12 +208,19 @@ async def login(
             else:
                 if not is_step_up:
                     response = Redirects.to_dashboard()
+                    gmail_query = build_gmail_query(
+                        last_fetched_date,
+                        request.session.get("start_date_updated"),
+                        request.session.get("start_date"),
+                        existing_user.scan_end_date,
+                    )
                     background_tasks.add_task(
                         fetch_emails_to_db,
                         user,
                         request,
                         last_fetched_date,
                         user_id=user.user_id,
+                        gmail_query=gmail_query,
                     )
                     logger.info("fetch_emails_to_db task started for user_id: %s fetching as of %s", user.user_id, last_fetched_date)
         else:
@@ -539,12 +546,19 @@ async def email_sync_auth(
             .order_by(task_models.TaskRuns.updated.desc())
         ).first()
         last_fetched_date = last_finished.last_processed_date if last_finished else None
+        gmail_query = build_gmail_query(
+            last_fetched_date,
+            request.session.get("start_date_updated"),
+            request.session.get("start_date"),
+            user.scan_end_date,
+        )
         background_tasks.add_task(
             fetch_emails_to_db,
             sync_user_for_task,
             request,
             last_fetched_date,
             user_id=user_id,
+            gmail_query=gmail_query,
         )
         logger.info("fetch_emails_to_db task started for user_id: %s fetching as of %s", user_id, last_fetched_date)
         return Redirects.to_dashboard()

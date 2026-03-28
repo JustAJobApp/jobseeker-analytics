@@ -1023,4 +1023,4 @@ def _fetch_emails_to_db_impl(
     # This is outside the db_session context to ensure clean session management
     if is_quick_scan:
         logger.info(f"user_id:{user_id} Quick scan complete, starting follow-up scan for remaining emails")
-        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, quick_limit=None)
+        _fetch_emails_to_db_impl(user, request, last_updated, user_id=user_id, gmail_query=gmail_query, quick_limit=None)
