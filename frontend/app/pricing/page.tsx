@@ -141,8 +141,15 @@ function PricingContent() {
 								className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${interval === "yearly" ? "bg-primary text-primary-foreground" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"}`}
 								onClick={() => setInterval("yearly")}
 							>
-								Yearly{prices && (
-									<span className="text-xs opacity-80"> save ${Math.round((prices.monthly.unit_amount * 12 - prices.yearly.unit_amount) / 100)}</span>
+								Yearly
+								{prices && (
+									<span className="text-xs opacity-80">
+										{" "}
+										save $
+										{Math.round(
+											(prices.monthly.unit_amount * 12 - prices.yearly.unit_amount) / 100
+										)}
+									</span>
 								)}
 							</button>
 						</div>
@@ -211,7 +218,9 @@ function PricingContent() {
 											<span className="text-4xl font-bold text-gray-800 dark:text-white">
 												${prices[interval].unit_amount / 100}
 											</span>
-											<span className="text-gray-500 dark:text-gray-400">/{prices[interval].interval}</span>
+											<span className="text-gray-500 dark:text-gray-400">
+												/{prices[interval].interval}
+											</span>
 										</>
 									) : (
 										<span className="text-4xl font-bold text-gray-400">—</span>

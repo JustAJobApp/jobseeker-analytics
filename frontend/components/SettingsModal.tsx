@@ -417,7 +417,8 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.subscription_price_cents / 100).toFixed(0)}/{status.subscription_interval ?? "month"}
+														${(status.subscription_price_cents / 100).toFixed(0)}/
+														{status.subscription_interval ?? "month"}
 													</p>
 												</div>
 												<p className="text-sm text-warning-600 dark:text-amber-400">
@@ -429,7 +430,8 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.subscription_price_cents / 100).toFixed(0)}/{status.subscription_interval ?? "month"}
+														${(status.subscription_price_cents / 100).toFixed(0)}/
+														{status.subscription_interval ?? "month"}
 														{status.subscription_renews_at && (
 															<span className="text-foreground/50 dark:text-gray-400">
 																{" "}
