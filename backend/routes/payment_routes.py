@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-# Fixed premium price - no user-supplied amounts allowed
-PREMIUM_AMOUNT_CENTS = 500  # $5/month
+# Fixed premium prices - no user-supplied amounts allowed
+PREMIUM_AMOUNT_CENTS = 500   # $5/month
+YEARLY_AMOUNT_CENTS = 4900   # $49/year
 
 
 # Request/Response models
@@ -29,6 +30,7 @@ class ValidatePromoRequest(BaseModel):
 
 class CheckoutRequest(BaseModel):
     trigger_type: Optional[str] = None
+    interval: Optional[Literal["monthly", "yearly"]] = "monthly"
 
 
 @router.post("/payment/validate-promo")
@@ -76,8 +78,13 @@ async def create_checkout(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Use fixed premium amount - ignore any user-supplied amount
-    amount_cents = PREMIUM_AMOUNT_CENTS
+    # Select fixed Price ID and amount based on billing interval
+    if body.interval == "yearly":
+        price_id = settings.STRIPE_YEARLY_PRICE_ID
+        amount_cents = YEARLY_AMOUNT_CENTS
+    else:
+        price_id = settings.STRIPE_MONTHLY_PRICE_ID
+        amount_cents = PREMIUM_AMOUNT_CENTS
 
     try:
         # Create or get Stripe customer
@@ -94,12 +101,7 @@ async def create_checkout(
             customer=user.stripe_customer_id,
             mode="subscription",
             line_items=[{
-                "price_data": {
-                    "currency": "usd",
-                    "unit_amount": amount_cents,
-                    "recurring": {"interval": "month"},
-                    "product_data": {"name": "JustAJobApp Monthly Contribution"}
-                },
+                "price": price_id,
                 "quantity": 1
             }],
             success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",

@@ -36,6 +36,7 @@ class PremiumStatusResponse(BaseModel):
     cancel_at_period_end: bool = False
     subscription_ends_at: Optional[int] = None  # Unix timestamp when cancelled
     subscription_renews_at: Optional[int] = None  # Unix timestamp for next renewal
+    subscription_interval: Optional[str] = None  # "month" or "year"
     emails_processed_this_month: int = 0
     monthly_email_cap: int
     monthly_reset_date: Optional[str] = None  # ISO date of next reset (1st of next month)
@@ -75,6 +76,7 @@ async def get_premium_status(
     cancel_at_period_end = False
     subscription_ends_at = None
     subscription_renews_at = None
+    subscription_interval = None
     if user.stripe_subscription_id:
         try:
             get_stripe_key()
@@ -82,11 +84,12 @@ async def get_premium_status(
             cancel_at_period_end = subscription.get("cancel_at_period_end", False)
             if cancel_at_period_end:
                 subscription_ends_at = subscription.get("cancel_at")
-            # Get renewal date from subscription items (current_period_end moved here in newer Stripe API)
+            # Get renewal date and interval from subscription items
             items = subscription.get("items", {})
             items_data = items.get("data", [])
             if items_data:
                 subscription_renews_at = items_data[0].get("current_period_end")
+                subscription_interval = items_data[0].get("price", {}).get("recurring", {}).get("interval")
         except stripe.error.StripeError as e:
             logger.warning(f"Failed to fetch subscription status: {e}")
 
@@ -129,6 +132,7 @@ async def get_premium_status(
         cancel_at_period_end=cancel_at_period_end,
         subscription_ends_at=subscription_ends_at,
         subscription_renews_at=subscription_renews_at,
+        subscription_interval=subscription_interval,
         emails_processed_this_month=emails_processed,
         monthly_email_cap=monthly_cap,
         monthly_reset_date=next_reset.isoformat(),

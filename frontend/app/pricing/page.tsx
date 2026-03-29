@@ -8,13 +8,12 @@ import { Navbar } from "@/components/navbar";
 import SettingsModal from "@/components/SettingsModal";
 import Spinner from "@/components/spinner";
 
-const PREMIUM_AMOUNT_CENTS = 500; // $5/month
-
 function PricingContent() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isPremium, setIsPremium] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [isLoggedIn, setIsLoggedIn] = useState(false);
+	const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
 	const hasTriggeredUpgrade = useRef(false);
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 	const router = useRouter();
@@ -49,7 +48,7 @@ function PricingContent() {
 		fetchPremiumStatus();
 	}, [apiUrl]);
 
-	const triggerCheckout = async () => {
+	const triggerCheckout = async (selectedInterval: "monthly" | "yearly" = interval) => {
 		setIsLoading(true);
 
 		try {
@@ -58,9 +57,8 @@ function PricingContent() {
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					amount_cents: PREMIUM_AMOUNT_CENTS,
 					trigger_type: "pricing_page",
-					is_recurring: true
+					interval: selectedInterval
 				})
 			});
 
@@ -83,18 +81,18 @@ function PricingContent() {
 			hasTriggeredUpgrade.current = true;
 			// Small delay to ensure state is settled
 			setTimeout(() => {
-				triggerCheckout();
+				triggerCheckout(interval);
 			}, 100);
 		}
 	}, [action, isLoggedIn]);
 
-	const handleUpgrade = () => {
+	const handleUpgrade = (selectedInterval: "monthly" | "yearly" = interval) => {
 		// If not logged in, redirect to login with return URL
 		if (!isLoggedIn) {
 			router.push("/login?redirect=/pricing&action=upgrade");
 			return;
 		}
-		triggerCheckout();
+		triggerCheckout(selectedInterval);
 	};
 
 	return (
@@ -109,6 +107,24 @@ function PricingContent() {
 							JustAJobApp is free to start. Support us to unlock premium features and keep this tool free
 							for those who need it.
 						</p>
+					</div>
+
+					{/* Billing interval toggle */}
+					<div className="flex justify-center mb-8">
+						<div className="inline-flex rounded-full border border-default-200 p-1 bg-white dark:bg-gray-900">
+							<button
+								className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${interval === "monthly" ? "bg-primary text-primary-foreground" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"}`}
+								onClick={() => setInterval("monthly")}
+							>
+								Monthly
+							</button>
+							<button
+								className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${interval === "yearly" ? "bg-primary text-primary-foreground" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"}`}
+								onClick={() => setInterval("yearly")}
+							>
+								Yearly <span className="text-xs opacity-80">save $11</span>
+							</button>
+						</div>
 					</div>
 
 					{/* Pricing Cards */}
@@ -169,8 +185,17 @@ function PricingContent() {
 							<CardHeader className="flex flex-col items-center pt-6 pb-4">
 								<h2 className="text-2xl font-bold text-gray-800 dark:text-white">Premium</h2>
 								<div className="mt-4">
-									<span className="text-4xl font-bold text-gray-800 dark:text-white">$5</span>
-									<span className="text-gray-500 dark:text-gray-400">/month</span>
+									{interval === "yearly" ? (
+										<>
+											<span className="text-4xl font-bold text-gray-800 dark:text-white">$49</span>
+											<span className="text-gray-500 dark:text-gray-400">/year</span>
+										</>
+									) : (
+										<>
+											<span className="text-4xl font-bold text-gray-800 dark:text-white">$5</span>
+											<span className="text-gray-500 dark:text-gray-400">/month</span>
+										</>
+									)}
 								</div>
 							</CardHeader>
 							<CardBody className="px-6 pb-8">
@@ -205,7 +230,7 @@ function PricingContent() {
 											className="w-full"
 											color="primary"
 											isLoading={isLoading}
-											onPress={handleUpgrade}
+											onPress={() => handleUpgrade(interval)}
 										>
 											Upgrade to Premium
 										</Button>
@@ -298,7 +323,7 @@ function PricingContent() {
 									Can I cancel anytime?
 								</h3>
 								<p className="text-gray-600 dark:text-gray-300">
-									Yes! You can cancel your monthly support at any time. You'll keep premium features
+									Yes! You can cancel your subscription at any time. You'll keep premium features
 									until the end of your billing period.
 								</p>
 							</div>
