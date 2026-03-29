@@ -8,12 +8,23 @@ import { Navbar } from "@/components/navbar";
 import SettingsModal from "@/components/SettingsModal";
 import Spinner from "@/components/spinner";
 
+interface PriceInfo {
+	unit_amount: number;
+	interval: string;
+}
+
+interface Prices {
+	monthly: PriceInfo;
+	yearly: PriceInfo;
+}
+
 function PricingContent() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isPremium, setIsPremium] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [isLoggedIn, setIsLoggedIn] = useState(false);
 	const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
+	const [prices, setPrices] = useState<Prices | null>(null);
 	const hasTriggeredUpgrade = useRef(false);
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 	const router = useRouter();
@@ -45,7 +56,18 @@ function PricingContent() {
 				setIsLoggedIn(false);
 			}
 		};
+		const fetchPrices = async () => {
+			try {
+				const response = await fetch(`${apiUrl}/payment/prices`);
+				if (response.ok) {
+					setPrices(await response.json());
+				}
+			} catch (err) {
+				// prices remain null; UI falls back to dashes
+			}
+		};
 		fetchPremiumStatus();
+		fetchPrices();
 	}, [apiUrl]);
 
 	const triggerCheckout = async (selectedInterval: "monthly" | "yearly" = interval) => {
@@ -122,7 +144,9 @@ function PricingContent() {
 								className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${interval === "yearly" ? "bg-primary text-primary-foreground" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"}`}
 								onClick={() => setInterval("yearly")}
 							>
-								Yearly <span className="text-xs opacity-80">save $11</span>
+								Yearly{prices && (
+									<span className="text-xs opacity-80"> save ${Math.round((prices.monthly.unit_amount * 12 - prices.yearly.unit_amount) / 100)}</span>
+								)}
 							</button>
 						</div>
 					</div>
@@ -185,16 +209,15 @@ function PricingContent() {
 							<CardHeader className="flex flex-col items-center pt-6 pb-4">
 								<h2 className="text-2xl font-bold text-gray-800 dark:text-white">Premium</h2>
 								<div className="mt-4">
-									{interval === "yearly" ? (
+									{prices ? (
 										<>
-											<span className="text-4xl font-bold text-gray-800 dark:text-white">$49</span>
-											<span className="text-gray-500 dark:text-gray-400">/year</span>
+											<span className="text-4xl font-bold text-gray-800 dark:text-white">
+												${prices[interval].unit_amount / 100}
+											</span>
+											<span className="text-gray-500 dark:text-gray-400">/{prices[interval].interval}</span>
 										</>
 									) : (
-										<>
-											<span className="text-4xl font-bold text-gray-800 dark:text-white">$5</span>
-											<span className="text-gray-500 dark:text-gray-400">/month</span>
-										</>
+										<span className="text-4xl font-bold text-gray-400">—</span>
 									)}
 								</div>
 							</CardHeader>

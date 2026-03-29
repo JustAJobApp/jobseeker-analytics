@@ -29,6 +29,29 @@ class CheckoutRequest(BaseModel):
     interval: Optional[Literal["monthly", "yearly"]] = "monthly"
 
 
+@router.get("/payment/prices")
+@limiter.limit("30/minute")
+async def get_prices(request: Request):
+    """Return unit_amount and interval for each premium price. No auth required."""
+    get_stripe_key()
+    try:
+        monthly = stripe.Price.retrieve(settings.STRIPE_MONTHLY_PRICE_ID)
+        yearly = stripe.Price.retrieve(settings.STRIPE_YEARLY_PRICE_ID)
+        return {
+            "monthly": {
+                "unit_amount": monthly["unit_amount"],
+                "interval": monthly["recurring"]["interval"],
+            },
+            "yearly": {
+                "unit_amount": yearly["unit_amount"],
+                "interval": yearly["recurring"]["interval"],
+            },
+        }
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error fetching prices: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prices")
+
+
 @router.post("/payment/validate-promo")
 @limiter.limit("10/minute")
 async def validate_promo_code(
