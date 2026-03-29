@@ -150,7 +150,7 @@ async def cancel_subscription(
             cancel_at_period_end=True
         )
 
-        # Don't clear monthly_price_cents yet - webhook will handle that
+        # Don't clear subscription_price_cents yet - webhook will handle that
         # when subscription actually ends
         period_end = updated_subscription.get("cancel_at")
 

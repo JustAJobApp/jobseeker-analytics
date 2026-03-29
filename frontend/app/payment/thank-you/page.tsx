@@ -33,7 +33,7 @@ function ThankYouContent() {
 
 				if (premiumRes.ok) {
 					const data = await premiumRes.json();
-					setMonthlyPrice(data.monthly_price_cents);
+					setMonthlyPrice(data.subscription_price_cents);
 				}
 
 				if (onboardingRes.ok) {

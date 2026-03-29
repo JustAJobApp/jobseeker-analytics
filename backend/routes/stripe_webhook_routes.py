@@ -96,7 +96,7 @@ async def stripe_webhook(
                 amount_cents = session.get("amount_total", 0)
 
                 # Set monthly price and subscription
-                user.monthly_price_cents = amount_cents
+                user.subscription_price_cents = amount_cents
                 user.stripe_subscription_id = subscription_id
                 # Update plan field if user is paying $5+/month (unless promo)
                 if amount_cents >= PREMIUM_MONTHLY_PRICE_CENTS and user.plan != "promo":
@@ -195,7 +195,7 @@ async def stripe_webhook(
             ).first()
 
             if user:
-                user.monthly_price_cents = 0
+                user.subscription_price_cents = 0
                 user.stripe_subscription_id = None
                 # Reset plan to free (unless promo)
                 if user.plan != "promo":
@@ -223,8 +223,8 @@ async def stripe_webhook(
                 ).first()
 
                 if user and new_amount > 0:
-                    old_amount = user.monthly_price_cents or 0
-                    user.monthly_price_cents = new_amount
+                    old_amount = user.subscription_price_cents or 0
+                    user.subscription_price_cents = new_amount
                     if user.plan != "promo":
                         if new_amount >= PREMIUM_MONTHLY_PRICE_CENTS:
                             user.plan = "paid"

@@ -37,7 +37,7 @@ def get_premium_reason(db_session, user: Users) -> str | None:
     if active_coach_link:
         return "coach_client"
 
-    if user.monthly_price_cents >= PREMIUM_MONTHLY_PRICE_CENTS:
+    if user.subscription_price_cents >= PREMIUM_MONTHLY_PRICE_CENTS:
         return "paid"
 
     return None

@@ -28,7 +28,7 @@ class PremiumStatusResponse(BaseModel):
 
     is_premium: bool
     premium_reason: Optional[str]  # "coach", "coach_client", "paid", or None
-    monthly_price_cents: int
+    subscription_price_cents: int
     has_active_subscription: bool
     has_valid_credentials: bool
     last_background_sync_at: Optional[str]
@@ -116,7 +116,7 @@ async def get_premium_status(
     return PremiumStatusResponse(
         is_premium=is_premium,
         premium_reason=premium_reason,
-        monthly_price_cents=user.monthly_price_cents,
+        subscription_price_cents=user.subscription_price_cents,
         has_active_subscription=user.stripe_subscription_id is not None,
         has_valid_credentials=has_valid_credentials,
         last_background_sync_at=(
