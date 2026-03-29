@@ -17,14 +17,16 @@ import posthog from "posthog-js";
 interface PremiumStatus {
 	is_premium: boolean;
 	premium_reason: "coach" | "coach_client" | "paid" | null;
-	monthly_contribution_cents: number;
+	subscription_price_cents: number;
 	has_active_subscription: boolean;
 	has_valid_credentials: boolean;
 	last_background_sync_at: string | null;
-	contribution_started_at: string | null;
+	subscribed_at: string | null;
 	cancel_at_period_end: boolean;
 	subscription_ends_at: number | null;
 	subscription_renews_at: number | null;
+	subscription_interval?: string | null;
+	sync_email_address?: string;
 }
 
 interface SettingsModalProps {
@@ -52,15 +54,38 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 	// Upgrade state
 	const [isUpgrading, setIsUpgrading] = useState(false);
 
+	// Gmail disconnect state
+	const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+	const [isDisconnecting, setIsDisconnecting] = useState(false);
+	const [syncEmail, setSyncEmail] = useState<string | null>(null);
+
+	// Account deletion state
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
+	const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 
-	// Fetch premium status when modal opens
+	// Fetch premium status and user info when modal opens
 	useEffect(() => {
 		if (isOpen) {
 			fetchPremiumStatus();
+			fetchUserInfo();
 			posthog.capture("settings_modal_opened");
 		}
 	}, [isOpen]);
+
+	const fetchUserInfo = async () => {
+		try {
+			const response = await fetch(`${apiUrl}/me`, { credentials: "include" });
+			if (response.ok) {
+				const data = await response.json();
+				setSyncEmail(data.sync_email_address || null);
+			}
+		} catch (err) {
+			console.error("Error fetching user info:", err);
+		}
+	};
 
 	const fetchPremiumStatus = async () => {
 		setLoading(true);
@@ -140,7 +165,7 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 			if (response.ok) {
 				const data = await response.json();
 				posthog.capture("subscription_cancelled", {
-					amount_cents: status?.monthly_contribution_cents,
+					amount_cents: status?.subscription_price_cents,
 					reason: cancelReason || "not_specified",
 					reason_other: cancelReason === "other" ? cancelReasonOther : undefined
 				});
@@ -201,10 +226,72 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 		}
 	};
 
+	// Disconnect Gmail
+	const handleDisconnectGmail = async () => {
+		setIsDisconnecting(true);
+		setError(null);
+
+		try {
+			const response = await fetch(`${apiUrl}/api/auth/gmail/disconnect`, {
+				method: "POST",
+				credentials: "include"
+			});
+
+			if (response.ok) {
+				posthog.capture("gmail_disconnected");
+				setSyncEmail(null);
+				setShowDisconnectConfirm(false);
+				// Refresh status
+				fetchPremiumStatus();
+				fetchUserInfo();
+			} else {
+				const data = await response.json();
+				setError(data.detail || "Failed to disconnect Gmail");
+			}
+		} catch (err) {
+			console.error("Error disconnecting Gmail:", err);
+			setError("Failed to disconnect Gmail");
+		} finally {
+			setIsDisconnecting(false);
+		}
+	};
+
+	// Delete account
+	const handleDeleteAccount = async () => {
+		if (deleteConfirmText !== "DELETE") return;
+
+		setIsDeleting(true);
+		setError(null);
+
+		try {
+			const response = await fetch(`${apiUrl}/api/users/me`, {
+				method: "DELETE",
+				credentials: "include"
+			});
+
+			if (response.ok) {
+				posthog.capture("account_deleted");
+				// Redirect to home page
+				window.location.href = "/";
+			} else {
+				const data = await response.json();
+				setError(data.detail || "Failed to delete account");
+			}
+		} catch (err) {
+			console.error("Error deleting account:", err);
+			setError("Failed to delete account");
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+
 	const handleClose = () => {
-		if (isCancelling || isUpgrading) return;
+		if (isCancelling || isUpgrading || isDisconnecting || isDeleting) return;
 		setShowCancelConfirm(false);
 		setShowCancelSuccess(false);
+		setShowDisconnectConfirm(false);
+		setShowDeleteConfirm(false);
+		setDeleteConfirmText("");
 		setCompletedCancelReason("");
 		setBillingPeriodEnd(null);
 		setError(null);
@@ -277,7 +364,7 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 										{showCancelConfirm ? (
 											<div className="space-y-4 mt-3">
 												<p className="text-sm font-medium text-foreground dark:text-white">
-													Cancel your contribution
+													Cancel your subscription
 												</p>
 												<p className="text-sm text-foreground/70 dark:text-gray-300">
 													We&apos;re sorry to see you go! If you have a sec, let us know why —
@@ -330,7 +417,8 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.monthly_contribution_cents / 100).toFixed(0)}/month
+														${(status.subscription_price_cents / 100).toFixed(0)}/
+														{status.subscription_interval ?? "month"}
 													</p>
 												</div>
 												<p className="text-sm text-warning-600 dark:text-amber-400">
@@ -342,7 +430,8 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 											<div className="space-y-2">
 												<div className="flex items-center justify-between">
 													<p className="text-sm text-foreground/70 dark:text-gray-300">
-														${(status.monthly_contribution_cents / 100).toFixed(0)}/month
+														${(status.subscription_price_cents / 100).toFixed(0)}/
+														{status.subscription_interval ?? "month"}
 														{status.subscription_renews_at && (
 															<span className="text-foreground/50 dark:text-gray-400">
 																{" "}
@@ -400,6 +489,118 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 										</Button>
 									)}
 								</div>
+							</div>
+
+							{/* Gmail Connection */}
+							<div className="border-t border-divider dark:border-[#3d5a3d] pt-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="font-medium text-foreground dark:text-white">Gmail connection</p>
+										{syncEmail ? (
+											<p className="text-sm text-foreground/60 dark:text-gray-400">
+												Connected: {syncEmail}
+											</p>
+										) : (
+											<p className="text-sm text-foreground/60 dark:text-gray-400">
+												Not connected
+											</p>
+										)}
+									</div>
+									{syncEmail &&
+										(showDisconnectConfirm ? (
+											<div className="flex gap-2">
+												<Button
+													color="default"
+													isDisabled={isDisconnecting}
+													size="sm"
+													variant="light"
+													onPress={() => setShowDisconnectConfirm(false)}
+												>
+													Cancel
+												</Button>
+												<Button
+													color="danger"
+													isLoading={isDisconnecting}
+													size="sm"
+													onPress={handleDisconnectGmail}
+												>
+													Disconnect
+												</Button>
+											</div>
+										) : (
+											<button
+												className="text-sm text-foreground/50 dark:text-gray-400 hover:text-danger hover:underline"
+												onClick={() => setShowDisconnectConfirm(true)}
+											>
+												Disconnect
+											</button>
+										))}
+								</div>
+								{showDisconnectConfirm && (
+									<p className="text-sm text-warning-600 dark:text-amber-400 mt-2">
+										This will stop syncing new emails. Your existing data will remain.
+									</p>
+								)}
+							</div>
+
+							{/* Delete Account */}
+							<div className="border-t border-divider dark:border-[#3d5a3d] pt-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="font-medium text-foreground dark:text-white">Delete account</p>
+										<p className="text-sm text-foreground/60 dark:text-gray-400">
+											Permanently delete your account and all data
+										</p>
+									</div>
+									{!showDeleteConfirm && (
+										<button
+											className="text-sm text-foreground/50 dark:text-gray-400 hover:text-danger hover:underline"
+											onClick={() => setShowDeleteConfirm(true)}
+										>
+											Delete
+										</button>
+									)}
+								</div>
+								{showDeleteConfirm && (
+									<div className="mt-3 p-3 bg-danger-50 dark:bg-red-900/20 rounded-lg">
+										<p className="text-sm text-danger-600 dark:text-red-400 mb-3">
+											This action cannot be undone. All your emails, settings, and account data
+											will be permanently deleted.
+										</p>
+										<div className="space-y-2">
+											<input
+												className="w-full px-3 py-2 text-sm rounded-lg border border-danger-300 dark:border-red-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-danger"
+												placeholder="Type DELETE to confirm"
+												type="text"
+												value={deleteConfirmText}
+												onChange={(e) => setDeleteConfirmText(e.target.value.toUpperCase())}
+											/>
+											<div className="flex gap-2">
+												<Button
+													color="default"
+													isDisabled={isDeleting}
+													size="sm"
+													variant="light"
+													onPress={() => {
+														setShowDeleteConfirm(false);
+														setDeleteConfirmText("");
+													}}
+												>
+													Cancel
+												</Button>
+												<Button
+													color="danger"
+													isDisabled={deleteConfirmText !== "DELETE"}
+													isLoading={isDeleting}
+													size="sm"
+													onPress={handleDeleteAccount}
+												>
+													Delete my account
+												</Button>
+											</div>
+										</div>
+									</div>
+								)}
 							</div>
 
 							{/* Error display */}

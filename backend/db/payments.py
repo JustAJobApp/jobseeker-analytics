@@ -5,16 +5,16 @@ import uuid
 import sqlalchemy as sa
 
 
-class Contributions(SQLModel, table=True):
-    """Tracks payment history for user contributions."""
+class Payments(SQLModel, table=True):
+    """Tracks subscription payment history."""
 
-    __tablename__ = "contributions"
+    __tablename__ = "payments"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: str = Field(foreign_key="users.user_id", nullable=False, index=True)
 
     # Stripe identifiers
-    stripe_payment_intent_id: Optional[str] = Field(default=None, nullable=True)
+    stripe_checkout_session_id: Optional[str] = Field(default=None, nullable=True)
     stripe_subscription_id: Optional[str] = Field(default=None, nullable=True)
 
     # Payment details

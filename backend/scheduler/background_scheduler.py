@@ -11,6 +11,8 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import select
 
 from db.users import Users
+from db import processing_tasks as task_models
+
 from db.oauth_credentials import OAuthCredentials
 from db.utils.user_utils import get_last_email_date
 from services.background_email_service import BackgroundEmailFetcher
@@ -97,8 +99,15 @@ def run_premium_batch() -> None:
 
         for user in users:
             try:
-                # Get last email date for incremental fetch
-                last_updated = get_last_email_date(user.user_id, db_session)
+                # Get last_processed_date from task run for accurate incremental fetch
+                last_finished = db_session.exec(
+                    select(task_models.TaskRuns)
+                    .where(task_models.TaskRuns.user_id == user.user_id)
+                    .where(task_models.TaskRuns.status == task_models.FINISHED)
+                    .where(task_models.TaskRuns.history_sync_completed.is_(True))
+                    .order_by(task_models.TaskRuns.updated.desc())
+                ).first()
+                last_updated = last_finished.last_processed_date if last_finished else get_last_email_date(user.user_id, db_session)
 
                 # Create fetcher and run
                 fetcher = BackgroundEmailFetcher(db_session, user.user_id)
@@ -146,11 +155,11 @@ def get_eligible_premium_users(db_session) -> List[Users]:
     Premium users are:
     - Users with active coach (CoachClientLink with no end_date)
     - Users who are coaches (role = 'coach')
-    - Users contributing $5+/month (monthly_contribution_cents >= 500)
+    - Users with an active $5+/month subscription (subscription_price_cents >= 500)
     """
     # Query users with premium tier
     eligible_users = db_session.exec(
-        select(Users).where(Users.sync_tier == "premium").where(Users.is_active)
+        select(Users).where(Users.sync_tier == "premium")
     ).all()
 
     # Filter to only those with valid credentials

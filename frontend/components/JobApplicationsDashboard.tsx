@@ -46,8 +46,8 @@ export interface JobApplicationsDashboardProps {
 	onStatusFilterChange?: (status: string) => void;
 	companyFilter?: string;
 	onCompanyFilterChange?: (company: string) => void;
-	normalizedJobTitleFilter?: string;
-	onNormalizedJobTitleFilterChange?: (title: string) => void;
+	jobTitleFilter?: string;
+	onJobTitleFilterChange?: (jobTitle: string) => void;
 	hideRejections?: boolean;
 	onHideRejectionsChange?: (hide: boolean) => void;
 	hideApplicationConfirmations?: boolean;
@@ -58,6 +58,7 @@ export interface JobApplicationsDashboardProps {
 	totalPages: number;
 	onRefreshData?: () => void;
 	readOnly?: boolean;
+	isScanning?: boolean;
 }
 
 // Load sort key from localStorage or use default
@@ -130,8 +131,8 @@ export default function JobApplicationsDashboard({
 	onStatusFilterChange,
 	companyFilter = "",
 	onCompanyFilterChange,
-	normalizedJobTitleFilter = "",
-	onNormalizedJobTitleFilterChange,
+	jobTitleFilter = "",
+	onJobTitleFilterChange,
 	hideRejections = true,
 	onHideRejectionsChange,
 	hideApplicationConfirmations = true,
@@ -141,12 +142,15 @@ export default function JobApplicationsDashboard({
 	currentPage,
 	totalPages,
 	onRefreshData,
-	readOnly = false
+	readOnly = false,
+	isScanning = false
 }: JobApplicationsDashboardProps) {
 	const [selectedKeys, setSelectedKeys] = useState(new Set([getInitialSortKey(initialSortKey)]));
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 	const [showDelete, setShowDelete] = useState(false);
 	const [itemToRemove, setItemToRemove] = useState<string | null>(null);
+	const [showCompanyFilter, setShowCompanyFilter] = useState(false);
+	const [showJobTitleFilter, setShowJobTitleFilter] = useState(false);
 
 	const pageSize = 10;
 
@@ -201,11 +205,9 @@ export default function JobApplicationsDashboard({
 		return Array.from(companies).sort();
 	}, [data]);
 
-	const uniqueNormalizedJobTitles = React.useMemo(() => {
-		const titles = new Set(
-			data.map((item) => item.normalized_job_title).filter((title) => title && title.trim() !== "")
-		);
-		return Array.from(titles).sort();
+	const uniqueJobTitles = React.useMemo(() => {
+		const jobTitles = new Set(data.map((item) => item.job_title).filter(Boolean));
+		return Array.from(jobTitles).sort();
 	}, [data]);
 
 	const selectedValue = React.useMemo(() => Array.from(selectedKeys).join(", ").replace(/_/g, ""), [selectedKeys]);
@@ -227,13 +229,6 @@ export default function JobApplicationsDashboard({
 				break;
 			case "Job Title":
 				sorted.sort((a, b) => a.job_title.localeCompare(b.job_title));
-				break;
-			case "Normalized Job Title":
-				sorted.sort((a, b) => {
-					const titleA = a.normalized_job_title?.toLowerCase() || "";
-					const titleB = b.normalized_job_title?.toLowerCase() || "";
-					return titleA.localeCompare(titleB);
-				});
 				break;
 			case "Status":
 				sorted.sort((a, b) => a.application_status.localeCompare(b.application_status));
@@ -374,6 +369,90 @@ export default function JobApplicationsDashboard({
 					)}
 				</ModalContent>
 			</Modal>
+			{/* Company Filter - Collapsible chips */}
+			{uniqueCompanies.length > 0 && (
+				<div className="mb-4">
+					<button
+						className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300"
+						onClick={() => setShowCompanyFilter(!showCompanyFilter)}
+					>
+						<span>{showCompanyFilter ? "▼" : "▶"}</span>
+						Filter by Company ({uniqueCompanies.length}){companyFilter && `: ${companyFilter}`}
+					</button>
+					{showCompanyFilter && (
+						<div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
+							<Button
+								color={!companyFilter ? "primary" : "default"}
+								size="sm"
+								variant={!companyFilter ? "solid" : "bordered"}
+								onPress={() => {
+									posthog.capture("filter_company_changed");
+									onCompanyFilterChange?.("");
+								}}
+							>
+								All Companies
+							</Button>
+							{uniqueCompanies.map((company: string) => (
+								<Button
+									key={company}
+									color={companyFilter === company ? "primary" : "default"}
+									size="sm"
+									variant={companyFilter === company ? "solid" : "bordered"}
+									onPress={() => {
+										posthog.capture("filter_company_changed");
+										onCompanyFilterChange?.(company);
+									}}
+								>
+									{company}
+								</Button>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+
+			{/* Job Title Filter - Collapsible chips */}
+			{uniqueJobTitles.length > 0 && (
+				<div className="mb-4">
+					<button
+						className="text-sm text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300"
+						onClick={() => setShowJobTitleFilter(!showJobTitleFilter)}
+					>
+						<span>{showJobTitleFilter ? "▼" : "▶"}</span>
+						Filter by Job Title ({uniqueJobTitles.length}){jobTitleFilter && `: ${jobTitleFilter}`}
+					</button>
+					{showJobTitleFilter && (
+						<div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
+							<Button
+								color={!jobTitleFilter ? "primary" : "default"}
+								size="sm"
+								variant={!jobTitleFilter ? "solid" : "bordered"}
+								onPress={() => {
+									posthog.capture("filter_job_title_changed");
+									onJobTitleFilterChange?.("");
+								}}
+							>
+								All Job Titles
+							</Button>
+							{uniqueJobTitles.map((jobTitle: string) => (
+								<Button
+									key={jobTitle}
+									color={jobTitleFilter === jobTitle ? "primary" : "default"}
+									size="sm"
+									variant={jobTitleFilter === jobTitle ? "solid" : "bordered"}
+									onPress={() => {
+										posthog.capture("filter_job_title_changed");
+										onJobTitleFilterChange?.(jobTitle);
+									}}
+								>
+									{jobTitle}
+								</Button>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+
 			{/* Filter Row */}
 			<div className="flex flex-wrap items-center gap-3 mb-4">
 				{/* Search Input */}
@@ -412,68 +491,6 @@ export default function JobApplicationsDashboard({
 							{uniqueStatuses.map((status: string) => (
 								<DropdownItem key={status}>{status}</DropdownItem>
 							))}
-						</>
-					</DropdownMenu>
-				</Dropdown>
-
-				{/* Company Filter */}
-				<Dropdown>
-					<DropdownTrigger>
-						<Button
-							color={companyFilter ? "primary" : "default"}
-							isDisabled={!data || data.length === 0}
-							size="sm"
-							variant={companyFilter ? "solid" : "bordered"}
-						>
-							{companyFilter || "Company"}
-						</Button>
-					</DropdownTrigger>
-					<DropdownMenu
-						aria-label="Company filter"
-						selectedKeys={companyFilter ? new Set([companyFilter]) : new Set()}
-						selectionMode="single"
-						onSelectionChange={(keys) => {
-							const selectedCompany = Array.from(keys)[0] as string;
-							posthog.capture("filter_company_changed");
-							onCompanyFilterChange?.(selectedCompany || "");
-						}}
-					>
-						<>
-							<DropdownItem key="">All Companies</DropdownItem>
-							{uniqueCompanies.map((company: string) => (
-								<DropdownItem key={company}>{company}</DropdownItem>
-							))}
-						</>
-					</DropdownMenu>
-				</Dropdown>
-
-				{/* Job Title Filter */}
-				<Dropdown>
-					<DropdownTrigger>
-						<Button
-							color={normalizedJobTitleFilter ? "primary" : "default"}
-							isDisabled={!data || data.length === 0}
-							size="sm"
-							variant={normalizedJobTitleFilter ? "solid" : "bordered"}
-						>
-							{normalizedJobTitleFilter || "Job Title"}
-						</Button>
-					</DropdownTrigger>
-					<DropdownMenu
-						aria-label="Job title filter"
-						selectedKeys={normalizedJobTitleFilter ? new Set([normalizedJobTitleFilter]) : new Set()}
-						selectionMode="single"
-						onSelectionChange={(keys) => {
-							const selectedTitle = Array.from(keys)[0] as string;
-							posthog.capture("filter_job_title_changed");
-							onNormalizedJobTitleFilterChange?.(selectedTitle || "");
-						}}
-					>
-						<>
-							<DropdownItem key="">All Job Titles</DropdownItem>
-							{uniqueNormalizedJobTitles.map((title: string | undefined) =>
-								title ? <DropdownItem key={title}>{title}</DropdownItem> : null
-							)}
 						</>
 					</DropdownMenu>
 				</Dropdown>
@@ -542,7 +559,6 @@ export default function JobApplicationsDashboard({
 						<DropdownItem key="Date (Newest)">Date (Newest)</DropdownItem>
 						<DropdownItem key="Date (Oldest)">Date (Oldest)</DropdownItem>
 						<DropdownItem key="Company">Company (A-Z)</DropdownItem>
-						<DropdownItem key="Normalized Job Title">Job Title (A-Z)</DropdownItem>
 						<DropdownItem key="Status">Status</DropdownItem>
 					</DropdownMenu>
 				</Dropdown>
@@ -552,11 +568,12 @@ export default function JobApplicationsDashboard({
 
 				{/* Action Buttons */}
 				<Button
-					color="success"
+					color="default"
 					isDisabled={!data || readOnly || data.length === 0}
 					isLoading={downloading}
 					size="sm"
 					startContent={<DownloadIcon />}
+					variant="bordered"
 					onPress={onDownloadCsv}
 				>
 					CSV
@@ -664,103 +681,170 @@ export default function JobApplicationsDashboard({
 							)}
 						</div>
 					)}
-					<Table
-						aria-label="Applications Table"
-						classNames={{
-							th: "bg-content1 text-foreground dark:bg-content2 dark:text-foreground"
-						}}
-					>
-						<TableHeader>
-							<TableColumn className="text-center">Company</TableColumn>
-							<TableColumn className="text-center">Status</TableColumn>
-							<TableColumn className="text-center">Received</TableColumn>
-							<TableColumn className="text-center">Job Title</TableColumn>
-							<TableColumn className="text-center">Normalized Job Title</TableColumn>
-							<TableColumn className="text-center">Subject</TableColumn>
-							<TableColumn className="text-center">Sender</TableColumn>
-							<TableColumn className="text-center">Actions</TableColumn>
-						</TableHeader>
-						<TableBody>
-							{paginatedData.map((item) => (
-								<TableRow
-									key={item.id || item.received_at}
-									className="hover:bg-default-100 dark:hover:bg-content2 transition-colors"
-								>
-									<TableCell className="max-w-[100px] text-center">
-										{item.company_name || "--"}
-									</TableCell>
-									<TableCell className="max-w-[120px] break-words whitespace-normal text-center">
-										<span
-											className={`inline-flex items-center justify-center px-1.5 py-1 rounded text-sm font-medium ${getStatusClass(item.application_status)}`}
-										>
-											{item.application_status || "--"}
-										</span>
-									</TableCell>
-									<TableCell className="text-center">
-										{new Date(item.received_at).toLocaleDateString() || "--"}
-									</TableCell>
-									<TableCell className="max-w-[136px] break-words whitespace-normal text-center">
-										{item.job_title || "--"}
-									</TableCell>
-									<TableCell className="max-w-[136px] break-words whitespace-normal text-center">
-										{item.normalized_job_title || "--"}
-									</TableCell>
-									<TableCell className="max-w-[200px] break-words text-center">
-										{item.subject || "--"}
-									</TableCell>
-									<TableCell className="max-w-[220px] break-words whitespace-normal text-center">
-										{item.email_from || "--"}
-									</TableCell>
-									<TableCell className="text-center">
-										<div className="flex justify-center gap-2">
-											{!readOnly && (
-												<>
-													<Tooltip content="Edit">
-														<Button
-															isIconOnly
-															size="sm"
-															variant="light"
-															onPress={() => {
-																setSelectedApplication(item);
-																setModalMode("edit");
-																setShowApplicationModal(true);
-															}}
-														>
-															<EditIcon className="text-gray-800 dark:text-gray-300" />
-														</Button>
-													</Tooltip>
-													<Tooltip content="Remove">
-														<Button
-															isIconOnly
-															size="sm"
-															variant="light"
-															onPress={() => {
-																setItemToRemove(item.id || null);
-																setShowDelete(true);
-															}}
-														>
-															<TrashIcon className="text-gray-800 dark:text-gray-300" />
-														</Button>
-													</Tooltip>
-												</>
-											)}
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
+					{/* Empty states - rendered outside table */}
+					{isScanning && paginatedData.length === 0 ? (
+						<div className="flex flex-col items-center justify-center py-12 text-default-500">
+							<svg className="w-6 h-6 animate-spin mb-3" fill="none" viewBox="0 0 24 24">
+								<circle
+									className="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									strokeWidth="4"
+								/>
+								<path
+									className="opacity-75"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									fill="currentColor"
+								/>
+							</svg>
+							<span>Scan in progress — results will appear here</span>
+						</div>
+					) : paginatedData.length === 0 ? (
+						<div className="flex flex-col items-center justify-center py-12 text-default-500">
+							{data.length === 0 ? (
+								<>
+									<svg
+										className="w-12 h-12 text-default-300 mb-3"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={1.5}
+										/>
+									</svg>
+									<p className="font-medium text-default-600 mb-1">No job application emails found</p>
+									<p className="text-sm text-center max-w-md">
+										We didn&apos;t find any job-related emails in your selected date range. Try
+										clicking Refresh to scan again, or add applications manually.
+									</p>
+								</>
+							) : (
+								<>
+									<svg
+										className="w-12 h-12 text-default-300 mb-3"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={1.5}
+										/>
+									</svg>
+									<p className="font-medium text-default-600 mb-1">All emails hidden by filters</p>
+									<p className="text-sm">
+										Adjust your Status, Company, or Hide filters to see your {data.length} email
+										{data.length !== 1 ? "s" : ""}.
+									</p>
+								</>
+							)}
+						</div>
+					) : (
+						<Table
+							aria-label="Applications Table"
+							classNames={{
+								th: "bg-content1 text-foreground dark:bg-content2 dark:text-foreground"
+							}}
+						>
+							<TableHeader>
+								<TableColumn className="text-center">Company</TableColumn>
+								<TableColumn className="text-center">Status</TableColumn>
+								<TableColumn className="text-center">Received</TableColumn>
+								<TableColumn className="text-center">Job Title</TableColumn>
+								<TableColumn className="text-center">Subject</TableColumn>
+								<TableColumn className="text-center">Sender</TableColumn>
+								<TableColumn className="text-center">Actions</TableColumn>
+							</TableHeader>
+							<TableBody>
+								{paginatedData.map((item) => (
+									<TableRow
+										key={item.id || item.received_at}
+										className="hover:bg-default-100 dark:hover:bg-content2 transition-colors"
+									>
+										<TableCell className="max-w-[100px] text-center">
+											{item.company_name || "--"}
+										</TableCell>
+										<TableCell className="max-w-[120px] break-words whitespace-normal text-center">
+											<span
+												className={`inline-flex items-center justify-center px-1.5 py-1 rounded text-sm font-medium ${getStatusClass(item.application_status)}`}
+											>
+												{item.application_status || "--"}
+											</span>
+										</TableCell>
+										<TableCell className="text-center">
+											{new Date(item.received_at).toLocaleDateString() || "--"}
+										</TableCell>
+										<TableCell className="max-w-[136px] break-words whitespace-normal text-center">
+											{item.job_title || "--"}
+										</TableCell>
+										<TableCell className="max-w-[200px] break-words text-center">
+											{item.subject || "--"}
+										</TableCell>
+										<TableCell className="max-w-[220px] break-words whitespace-normal text-center">
+											{item.email_from || "--"}
+										</TableCell>
+										<TableCell className="text-center">
+											<div className="flex justify-center gap-2">
+												{!readOnly && (
+													<>
+														<Tooltip content="Edit">
+															<Button
+																isIconOnly
+																size="sm"
+																variant="light"
+																onPress={() => {
+																	setSelectedApplication(item);
+																	setModalMode("edit");
+																	setShowApplicationModal(true);
+																}}
+															>
+																<EditIcon className="text-gray-800 dark:text-gray-300" />
+															</Button>
+														</Tooltip>
+														<Tooltip content="Remove">
+															<Button
+																isIconOnly
+																size="sm"
+																variant="light"
+																onPress={() => {
+																	setItemToRemove(item.id || null);
+																	setShowDelete(true);
+																}}
+															>
+																<TrashIcon className="text-gray-800 dark:text-gray-300" />
+															</Button>
+														</Tooltip>
+													</>
+												)}
+											</div>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
 				</div>
 			)}
-			<div className="flex justify-between items-center mt-4">
-				<Button disabled={currentPage <= 1} onPress={onPrevPage}>
-					Previous
-				</Button>
-				<span>{`${currentPage} of ${Math.max(1, totalPages)}`}</span>
-				<Button disabled={currentPage >= totalPages} onPress={onNextPage}>
-					Next
-				</Button>
-			</div>
+			{/* Hide pagination when no data to show */}
+			{data.length > 0 && (
+				<div className="flex justify-between items-center mt-4">
+					<Button disabled={currentPage <= 1} onPress={onPrevPage}>
+						Previous
+					</Button>
+					<span>{`${currentPage} of ${Math.max(1, totalPages)}`}</span>
+					<Button disabled={currentPage >= totalPages} onPress={onNextPage}>
+						Next
+					</Button>
+				</div>
+			)}
 
 			{/* Add/Edit Application Modal */}
 			<JobApplicationModal

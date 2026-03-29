@@ -14,6 +14,7 @@ from sqlmodel import select
 from utils.auth_utils import AuthenticatedUser
 from utils.billing_utils import is_premium_eligible
 from utils.credential_service import load_credentials
+from utils.tier_limits import FREE_HISTORY_DAYS
 from routes.email_routes import fetch_emails_to_db
 
 limiter = Limiter(key_func=get_remote_address)
@@ -28,6 +29,8 @@ class StartDatePreset(str, Enum):
     ONE_WEEK = "1_week"
     ONE_MONTH = "1_month"
     THREE_MONTHS = "3_months"
+    SIX_MONTHS = "6_months"
+    ONE_YEAR = "1_year"
     CUSTOM = "custom"
 
 
@@ -35,12 +38,16 @@ PRESET_DAYS = {
     StartDatePreset.ONE_WEEK: 7,
     StartDatePreset.ONE_MONTH: 30,
     StartDatePreset.THREE_MONTHS: 90,
+    StartDatePreset.SIX_MONTHS: 180,
+    StartDatePreset.ONE_YEAR: 365,
 }
 
 
 class UpdateStartDateRequest(BaseModel):
     preset: StartDatePreset
     custom_date: Optional[str] = None
+    fetch_order: str = "recent_first"   # "recent_first" | "oldest_first"
+    end_date: Optional[datetime] = None  # None = no upper bound
 
 
 @router.get("/settings/start-date")
@@ -110,13 +117,40 @@ async def update_start_date(
         days_ago = PRESET_DAYS.get(start_date_request.preset, 30)
         start_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
 
-    # Update user's start date
+    # Update user's start date and scan preferences
     user.start_date = start_date
+    user.fetch_order = start_date_request.fetch_order
+    is_premium = is_premium_eligible(db_session, user)
+
+    # Determine the effective scan range
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = now - timedelta(days=FREE_HISTORY_DAYS)
+
+    if is_premium:
+        # Premium users: use the full selected range
+        effective_start = start_date
+        # If extending backward, only scan from new start to earliest existing email
+        from db.utils.user_utils import get_earliest_email_date
+        earliest_email = get_earliest_email_date(user_id, db_session)
+        # Ensure timezone-aware comparison
+        if earliest_email and earliest_email.tzinfo is None:
+            earliest_email = earliest_email.replace(tzinfo=timezone.utc)
+        if earliest_email and start_date < earliest_email:
+            # User is extending backward - only scan the new range
+            user.scan_end_date = earliest_email
+            logger.info(f"user_id:{user_id} extending backward: scan_end_date set to earliest email {earliest_email.isoformat()}")
+        else:
+            user.scan_end_date = start_date_request.end_date
+    else:
+        # Free users: scan only the last 30 days through today
+        # If their selected start is within 30 days, use it; otherwise cap at 30 days ago
+        effective_start = max(start_date, thirty_days_ago)
+        user.scan_end_date = now  # Scan through today
     db_session.add(user)
     db_session.commit()
 
-    # Update session
-    request.session["start_date"] = start_date.strftime("%Y/%m/%d")
+    # Update session with effective scan start (used by fetch_emails_to_db)
+    request.session["start_date"] = effective_start.strftime("%Y/%m/%d")
     request.session["start_date_updated"] = True
 
     logger.info(f"user_id:{user_id} updated start date to {start_date.isoformat()}")
@@ -130,24 +164,28 @@ async def update_start_date(
 
     rescan_started = False
     if not active_task:
-        # Start background processing with new date
         try:
+            # Prefer email_sync credentials for Gmail access; fall back to primary
+            scan_creds = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=should_auto_refresh) or creds
             auth_user = AuthenticatedUser(
-                creds, 
-                _user_id=user.user_id, 
+                scan_creds,
+                _user_id=user.user_id,
                 _user_email=user.user_email
             )
 
-            # Use the new start date for fetching
+            # Only use quick_limit during onboarding (user hasn't completed onboarding yet)
+            # For existing users changing start date, do a full scan
+            is_onboarding = user.onboarding_completed_at is None
             background_tasks.add_task(
                 fetch_emails_to_db,
                 auth_user,
                 request,
-                start_date,  # Use the new start date
-                user_id=user_id
+                None,  # Force full re-scan from start_date (already set in session/DB)
+                user_id=user_id,
+                quick_limit=25 if is_onboarding else None,
             )
             rescan_started = True
-            logger.info(f"Rescan started for user {user_id} with new start date")
+            logger.info(f"Rescan started for user {user_id} (scan_start={effective_start.isoformat()}, scan_end={user.scan_end_date}, plan={user.plan})")
         except Exception as e:
             logger.error(f"Error starting rescan for user {user_id}: {e}")
 

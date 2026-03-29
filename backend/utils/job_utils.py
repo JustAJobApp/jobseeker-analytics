@@ -225,7 +225,7 @@ def normalize_job_title(title):
     Returns a normalized string or None if the title is invalid.
     """
     if not isinstance(title, str):
-        return None
+        return ""
 
     title_lower = title.lower()
     

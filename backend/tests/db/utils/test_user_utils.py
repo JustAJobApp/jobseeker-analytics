@@ -1,10 +1,7 @@
 from db.utils.user_utils import user_exists
 
-def test_inactive_user_attribute_is_returned(inactive_user, db_session):
-    user_object, _ = user_exists(inactive_user, db_session)
-    assert not user_object.is_active
 
-def test_active_user_attribute_is_returned(logged_in_user, db_session):
+def test_user_exists_returns_user(logged_in_user, db_session):
     user_object, _ = user_exists(logged_in_user, db_session)
-    assert user_object.is_active
-
+    assert user_object is not None
+    assert user_object.user_id == logged_in_user.user_id

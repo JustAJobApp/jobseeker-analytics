@@ -98,22 +98,6 @@ class TestJobseekerLoginFlows:
         assert data["has_email_sync_configured"] is True
 
 
-class TestInactiveUserFlow:
-    """Tests for inactive user behavior."""
-
-    def test_inactive_user_cannot_access_protected_endpoints(
-        self, client_factory, inactive_user
-    ):
-        """Inactive user should not be able to access protected endpoints."""
-        client = client_factory(user=inactive_user)
-
-        # The client_factory returns empty session for inactive users,
-        # so they should get 401 on protected endpoints
-        resp = client.get("/me")
-        # Either 401 (unauthorized) or 404 (user not found) is acceptable
-        assert resp.status_code in (401, 404)
-
-
 class TestRoleBasedAccess:
     """Tests for role-based access control."""
 

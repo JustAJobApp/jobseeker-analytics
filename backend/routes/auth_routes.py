@@ -7,6 +7,7 @@ from google_auth_oauthlib.flow import Flow
 import secrets
 import time
 
+from db import processing_tasks as task_models
 from db.utils.user_utils import user_exists
 from utils.auth_utils import AuthenticatedUser, get_google_authorization_url, get_refresh_token_status, get_creds, get_latest_refresh_token
 from session.session_layer import clear_session, create_random_session_string, get_token_expiry, validate_session
@@ -146,7 +147,7 @@ async def login(
         request.session["is_new_user"] = False 
 
         response = None # Initialize response with a default value
-        if existing_user and existing_user.is_active:
+        if existing_user:
             if is_step_up:
                 safe_url = get_safe_redirect_url(request=request, return_to=raw_return_to, default_url=f"{APP_URL}/settings")
                 response = RedirectResponse(url=safe_url, status_code=303)
@@ -215,14 +216,20 @@ async def login(
                         user_id=user.user_id,
                     )
                     logger.info("fetch_emails_to_db task started for user_id: %s fetching as of %s", user.user_id, last_fetched_date)
-        elif existing_user and not existing_user.is_active:
-            # Existing but inactive user - redirect to signup to reactivate
-            logger.info("user_id: %s is inactive. Redirecting to signup flow.", user.user_id)
-            return Redirects.to_signup()
         else:
-            # New user trying to login - redirect to signup flow
-            logger.info("user_id: %s does not exist. Redirecting to signup flow.", user.user_id)
-            return Redirects.to_signup()
+            # New user - create account directly (we already have their Google creds)
+            from db.users import Users as UserModel
+            new_user = UserModel(
+                user_id=user.user_id,
+                user_email=user.user_email,
+                start_date=None
+            )
+            db_session.add(new_user)
+            db_session.commit()
+            save_credentials(db_session, user.user_id, creds, credential_type="primary")
+            logger.info("Created new user_id: %s through login flow", user.user_id)
+            request.session["is_new_user"] = True
+            response = Redirects.to_onboarding()
 
         response = set_conditional_cookie(
             key="Authorization", value=session_id, response=response
@@ -237,6 +244,65 @@ async def logout(request: Request, response: RedirectResponse):
     logger.info("Logging out")
     clear_session(request, response)
     return RedirectResponse(f"{APP_URL}", status_code=303)
+
+
+@router.post("/api/auth/gmail/disconnect")
+@limiter.limit("5/minute")
+async def disconnect_gmail(
+    request: Request,
+    db_session: database.DBSession,
+    user_id: str = Depends(validate_session),
+):
+    """Disconnect Gmail integration and revoke OAuth tokens.
+
+    This removes the email_sync credentials and clears the Gmail sync configuration.
+    User emails in the database are NOT deleted - only the Gmail connection is severed.
+    """
+    from db.users import Users
+    from db.oauth_credentials import OAuthCredentials
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = db_session.exec(select(Users).where(Users.user_id == user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Load and revoke email_sync credentials if they exist
+    email_sync_creds = db_session.exec(
+        select(OAuthCredentials)
+        .where(OAuthCredentials.user_id == user_id)
+        .where(OAuthCredentials.credential_type == "email_sync")
+    ).first()
+
+    if email_sync_creds:
+        try:
+            # Try to revoke the token with Google
+            creds = load_credentials(db_session, user_id, credential_type="email_sync", auto_refresh=False)
+            if creds and creds.token:
+                import httplib2
+                h = httplib2.Http()
+                h.request(
+                    f"https://oauth2.googleapis.com/revoke?token={creds.token}",
+                    method="POST",
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                )
+                logger.info(f"Revoked Gmail token for user {user_id}")
+        except Exception as e:
+            # Token revocation is best-effort; continue even if it fails
+            logger.warning(f"Failed to revoke Gmail token for user {user_id}: {e}")
+
+        # Delete the credentials from database
+        db_session.delete(email_sync_creds)
+
+    # Update user record
+    user.has_email_sync_configured = False
+    user.sync_email_address = None
+    db_session.add(user)
+    db_session.commit()
+
+    logger.info(f"Gmail disconnected for user {user_id}")
+    return {"message": "Gmail disconnected successfully"}
 
 
 @router.get("/me")
@@ -262,8 +328,8 @@ async def getUser(request: Request, db_session: database.DBSession, user_id: str
         "has_completed_onboarding": user.onboarding_completed_at is not None,
         "has_email_sync_configured": user.has_email_sync_configured,
         "sync_email_address": user.sync_email_address,
-        "is_supporter": (user.monthly_contribution_cents or 0) > 0,
-        "supporter_since": user.contribution_started_at.isoformat() if user.contribution_started_at else None,
+        "is_subscriber": (user.subscription_price_cents or 0) > 0,
+        "subscribed_since": user.subscribed_at.isoformat() if user.subscribed_at else None,
         "has_active_coach": active_coach_link is not None
     }
 
@@ -325,8 +391,8 @@ async def signup(request: Request, db_session: database.DBSession):
         
         existing_user, _ = user_exists(user, db_session)
 
-        if existing_user and existing_user.is_active:
-            # Existing active user - redirect based on their status
+        if existing_user:
+            # Existing user - redirect based on their status
             if existing_user.onboarding_completed_at is not None:
                 if existing_user.has_email_sync_configured:
                     response = Redirects.to_dashboard()
@@ -335,20 +401,12 @@ async def signup(request: Request, db_session: database.DBSession):
             else:
                 # Not onboarded yet - go to onboarding
                 response = Redirects.to_onboarding()
-        elif existing_user and not existing_user.is_active:
-            # Existing but inactive user - activate them and send to onboarding
-            existing_user.is_active = True
-            db_session.add(existing_user)
-            db_session.commit()
-            logger.info("Activated existing user_id: %s through signup flow", user.user_id)
-            response = Redirects.to_onboarding()
         else:
             # New user - create account and redirect to onboarding
             from db.users import Users
             new_user = Users(
                 user_id=user.user_id,
                 user_email=user.user_email,
-                is_active=True,
                 start_date=None  # Will be set later
             )
             db_session.add(new_user)
@@ -465,11 +523,22 @@ async def email_sync_auth(
         db_session.commit()
         logger.info("Email sync configured for user_id: %s", user_id)
 
-        # Get last fetched date for incremental sync
-        from db.utils.user_utils import get_last_email_date
-        last_fetched_date = get_last_email_date(user_id, db_session)
+        # During onboarding, redirect back to onboarding to continue step 3.
+        # After onboarding (reconnect), trigger a background sync and go to dashboard.
+        if user.onboarding_completed_at is None:
+            logger.info("Email sync configured during onboarding for user %s, returning to onboarding", user_id)
+            return Redirects.to_onboarding()
 
-        # Trigger email fetch in background
+        # Post-onboarding reconnect: trigger incremental sync and go to dashboard
+        # Use last_processed_date from task run (tracks all scanned emails, not just stored ones)
+        last_finished = db_session.exec(
+            select(task_models.TaskRuns)
+            .where(task_models.TaskRuns.user_id == user_id)
+            .where(task_models.TaskRuns.status == task_models.FINISHED)
+            .where(task_models.TaskRuns.history_sync_completed.is_(True))
+            .order_by(task_models.TaskRuns.updated.desc())
+        ).first()
+        last_fetched_date = last_finished.last_processed_date if last_finished else None
         background_tasks.add_task(
             fetch_emails_to_db,
             sync_user_for_task,
@@ -477,10 +546,8 @@ async def email_sync_auth(
             last_fetched_date,
             user_id=user_id,
         )
-        logger.info("fetch_emails_to_db task started for user_id: %s", user_id)
-
-        response = Redirects.to_dashboard()
-        return response
+        logger.info("fetch_emails_to_db task started for user_id: %s fetching as of %s", user_id, last_fetched_date)
+        return Redirects.to_dashboard()
 
     except Exception as e:
         logger.error("Catchall email sync auth error: %s", e)

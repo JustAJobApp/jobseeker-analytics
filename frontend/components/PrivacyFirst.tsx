@@ -43,9 +43,12 @@ export const PrivacyFirst = () => {
 						</CardBody>
 					</Card>
 				</div>
-				<div className="text-center mt-12">
+				<div className="text-center mt-12 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+					<Link className="font-medium text-emerald-600 hover:text-emerald-500" href="/security">
+						View our security audit &rarr;
+					</Link>
 					<Link className="font-medium text-emerald-600 hover:text-emerald-500" href="/faq">
-						Have more questions? Read our full FAQ &rarr;
+						Read our full FAQ &rarr;
 					</Link>
 				</div>
 			</div>

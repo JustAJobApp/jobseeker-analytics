@@ -116,7 +116,7 @@ def validate_session(request: Request, db_session: database.DBSession) -> str:
             request.session.clear()
             return ""
             
-        if not user or not user.is_active:
+        if not user:
             request.session.clear()
             return ""
 

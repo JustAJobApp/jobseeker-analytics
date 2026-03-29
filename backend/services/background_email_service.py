@@ -13,7 +13,6 @@ from sqlmodel import Session, select
 from db.users import Users
 from db import processing_tasks as task_models
 from db.utils.user_email_utils import create_user_email
-from db.utils.user_utils import get_last_email_date
 from utils.auth_utils import AuthenticatedUser
 from utils.email_utils import get_email_ids, get_email, decode_subject_line
 from utils.llm_utils import process_email
@@ -22,7 +21,6 @@ from utils.config_utils import get_settings
 from utils.credential_service import get_credentials_for_background_task
 from start_date.storage import get_start_date_email_filter
 from constants import QUERY_APPLIED_EMAIL_FILTER
-import database
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -67,7 +65,6 @@ class BackgroundEmailFetcher:
             creds = get_credentials_for_background_task(
                 self.db_session,
                 self.user_id,
-                session_creds_json=None,  # No session in background context
             )
 
             if not creds:
@@ -363,20 +360,3 @@ class BackgroundEmailFetcher:
                 )
         except Exception as e:
             logger.error("Failed to mark task cancelled: %s", e)
-
-
-def run_background_fetch_for_user(user_id: str) -> bool:
-    """
-    Convenience function to run background email fetch for a single user.
-
-    Creates its own database session and handles cleanup.
-
-    Returns:
-        True if successful, False otherwise
-    """
-    with database.get_session() as db_session:
-        # Get last email date for incremental fetch
-        last_updated = get_last_email_date(user_id, db_session)
-
-        fetcher = BackgroundEmailFetcher(db_session, user_id)
-        return fetcher.fetch_emails(last_updated)

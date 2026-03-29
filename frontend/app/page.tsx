@@ -86,7 +86,7 @@ const Index = () => {
 								<h3 className="text-xl font-semibold mb-2 text-foreground">
 									Apply for jobs like normal
 								</h3>
-								<p className="text-foreground/80">No browser extensions, no clipping</p>
+								<p className="text-foreground/80">No browser extensions, no copy pasting</p>
 							</div>
 							<div className="text-center">
 								<div className="text-4xl font-bold text-primary mb-4">3</div>
@@ -144,51 +144,93 @@ const Index = () => {
 			<div className="bg-background dark:bg-content1 py-24">
 				<div className="mx-auto max-w-4xl px-6 lg:px-8">
 					<div className="text-center mb-10">
-						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">
-							What People Are Saying
+						<h2 className="text-sm font-semibold tracking-[0.2em] uppercase text-foreground/50">
+							What Job Seekers Are Saying
 						</h2>
 					</div>
-					<div className="space-y-10">
-						<div className="bg-gradient-to-br from-primary-100/40 to-content2 dark:from-content3 dark:to-content2 rounded-xl p-8 border-2 border-primary/30 dark:border-primary/20 shadow-lg">
-							<div className="flex items-start gap-4">
-								<div className="flex-shrink-0">
-									<svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
-										<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
-									</svg>
+					<div className="space-y-6">
+						{/* Top row: two short quotes side by side */}
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+							{/* Short quote 1 */}
+							<div className="bg-content2 dark:bg-content2 rounded-xl p-8 border border-content3 dark:border-content3 shadow-lg">
+								<svg
+									className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4"
+									fill="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
+								</svg>
+								<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
+									"Job-seeking friends, this app has been a life saver for me!"
+								</blockquote>
+								<div className="flex items-center gap-3">
+									<div className="w-10 h-10 rounded-full bg-slate-500 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+										SS
+									</div>
+									<div>
+										<div className="text-sm font-semibold text-foreground">
+											Senior Software Engineer
+										</div>
+										<div className="text-xs text-foreground/60">Job seeker</div>
+									</div>
 								</div>
-								<div className="flex-1">
-									<blockquote className="text-lg italic text-foreground/85 leading-relaxed">
-										"I receive so many emails a day that I mistook one for a rejection. Later, I saw
-										a color-coded 'Hiring Freeze' status in JustAJobApp that caught my eye. It
-										prompted me to go back and find the email—it wasn't a rejection, but an
-										invitation to apply for a reopened position.{" "}
-										<strong>I would have completely missed this opportunity.</strong>"
-									</blockquote>
-									<div className="mt-4 text-sm font-semibold text-foreground">
-										CS & Engineering New Grad, F1-OPT
+							</div>
+							{/* Short quote 2 */}
+							<div className="bg-content2 dark:bg-content2 rounded-xl p-8 border border-content3 dark:border-content3 shadow-lg">
+								<svg
+									className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4"
+									fill="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
+								</svg>
+								<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
+									"I get to see the entire picture on a single dashboard... and not have to
+									continually update a spreadsheet."
+								</blockquote>
+								<div className="flex items-center gap-3">
+									<div className="w-10 h-10 rounded-full bg-yellow-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+										DM
+									</div>
+									<div>
+										<div className="text-sm font-semibold text-foreground">Donal Murphy, MBA</div>
+										<div className="text-xs text-foreground/60">Global Events Producer</div>
 									</div>
 								</div>
 							</div>
 						</div>
-						<div className="bg-gradient-to-br from-content2 to-content3 dark:from-content2 dark:to-content3 rounded-xl p-8 border-2 border-content4 dark:border-content4 shadow-lg">
-							<div className="flex items-start gap-4">
-								<div className="flex-shrink-0">
-									<svg
-										className="w-8 h-8 text-primary-600 dark:text-primary"
-										fill="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
-									</svg>
+						{/* Bottom: full-width story quote */}
+						<div className="bg-content2 dark:bg-content2 rounded-xl p-8 border border-content3 dark:border-content3 shadow-lg">
+							<div className="mb-4">
+								<span className="inline-block text-xs font-semibold px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 dark:text-blue-300">
+									F1-OPT · CS &amp; Engineering
+								</span>
+							</div>
+							<svg
+								className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4"
+								fill="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
+							</svg>
+							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
+								"I receive so many emails a day that I mistook one for a rejection. Later, I saw a
+								color-coded 'Hiring Freeze' status in JustAJobApp that caught my eye. It prompted me to
+								go back and find the email —
+								<span className="block text-base px-3 py-2 my-4 rounded bg-yellow-700/30 text-yellow-900 dark:text-yellow-200">
+									it wasn't a rejection, but an invitation to apply for a reopened position.
+								</span>
+								I would have completely missed this opportunity."
+							</blockquote>
+							<div className="flex items-center gap-3">
+								<div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+									CS
 								</div>
-								<div className="flex-1">
-									<blockquote className="text-lg italic text-foreground/85 leading-relaxed">
-										"I get to see the entire picture on a single dashboard... and{" "}
-										<strong>not have to continually update a spreadsheet.</strong>"
-									</blockquote>
-									<div className="mt-4 text-sm font-semibold text-foreground">
-										Donal Murphy, MBA, Global Events Producer
+								<div>
+									<div className="text-sm font-semibold text-foreground">
+										CS &amp; Engineering New Grad
 									</div>
+									<div className="text-xs text-foreground/60">F1-OPT visa holder</div>
 								</div>
 							</div>
 						</div>
@@ -290,10 +332,6 @@ const Index = () => {
 								Login
 							</a>
 						</div>
-
-						<p className="mt-6 text-sm text-foreground/60">
-							Limited availability: ~15 spots remaining during security audit
-						</p>
 					</div>
 				</div>
 			</section>

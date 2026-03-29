@@ -28,7 +28,7 @@ I built JustAJobApp so this never happens to you.
 ## How It Works
 
 1. **Connect your Gmail** — Secure sign-in, takes 30 seconds
-2. **Apply for jobs like normal** — No browser extensions, no clipping
+2. **Apply for jobs like normal** — No browser extensions, no copy pasting
 3. **Your dashboard updates automatically** — Confirmation emails become tracked applications
 
 Unlike other job trackers that force you to manually "clip" every job with a browser extension, JustAJobApp is fully automated.

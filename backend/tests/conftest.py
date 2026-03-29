@@ -117,12 +117,11 @@ def task_factory(db_session, logged_in_user):
 
 
 @pytest.fixture
-def user_factory(db_session, is_active=True, start_date=None):
+def user_factory(db_session, start_date=None):
     def _create_user(
         user_id="123",
         user_email="user@example.com",
         start_date=start_date,
-        is_active=is_active,
         role="jobseeker",
         onboarding_completed_at=None,
         has_email_sync_configured=False,
@@ -131,7 +130,6 @@ def user_factory(db_session, is_active=True, start_date=None):
             user_id=user_id,
             user_email=user_email,
             start_date=start_date,
-            is_active=is_active,
             role=role,
             onboarding_completed_at=onboarding_completed_at,
             has_email_sync_configured=has_email_sync_configured,
@@ -147,11 +145,6 @@ def user_factory(db_session, is_active=True, start_date=None):
 def logged_in_user(user_factory):
     from datetime import datetime, timezone
     return user_factory(onboarding_completed_at=datetime.now(timezone.utc))
-
-
-@pytest.fixture
-def inactive_user(user_factory):
-    return user_factory(is_active=False)
 
 
 @pytest.fixture
@@ -253,12 +246,15 @@ def finished_task(task_factory):
 def task_with_300_processed_emails(task_factory):
     return task_factory(status=STARTED, processed_emails=300)
 
+@pytest.fixture
+def task_with_501_processed_emails(task_factory):
+    return task_factory(status=STARTED, processed_emails=501)
 
 @pytest.fixture
 def client_factory(db_session):
     def _make_client(user=None):
         main.app.dependency_overrides[database.request_session] = lambda: db_session
-        if user and user.is_active:
+        if user:
             user_id = user.user_id
             main.app.dependency_overrides[validate_session] = lambda: user_id
             main.app.dependency_overrides[require_onboarding_complete] = lambda: user_id

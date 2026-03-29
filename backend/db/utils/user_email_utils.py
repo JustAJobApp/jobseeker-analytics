@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 import email.utils
 import logging
 from sqlmodel import select
-from utils.job_utils import normalize_job_title
 
 logger = logging.getLogger(__name__)
 
@@ -54,30 +53,8 @@ def create_user_email(user_id: str, message_data: dict, db_session) -> UserEmail
             logger.info(f"Email with ID {message_data['id']} already exists in the database.")
             return None
         
-        # Normalize the job title
-        job_title = message_data["job_title"]
-        normalized_job_title = ""
-        
-        logger.debug(f"Processing job title normalization: '{job_title}'")
-        
-        if job_title and job_title.lower() != "unknown":
-            try:
-                logger.debug(f"Attempting to normalize job title: '{job_title}'")
-                normalized_result = normalize_job_title(job_title)
-                if normalized_result and normalized_result.strip():
-                    normalized_job_title = normalized_result  # Already capitalized by normalize_job_title
-                    logger.debug(f"Job title normalized successfully: '{job_title}' -> '{normalized_job_title}'")
-                else:
-                    normalized_job_title = job_title.title()  # Fall back to capitalized original
-                    logger.debug(f"Normalization returned empty, using capitalized original: '{job_title}' -> '{normalized_job_title}'")
-            except Exception as e:
-                logger.warning(f"Failed to normalize job title '{job_title}': {e}")
-                normalized_job_title = job_title.title()  # Fall back to capitalized original
-        else:
-            normalized_job_title = job_title  # Keep "unknown" or empty titles as-is
-            logger.debug(f"Job title is unknown or empty, keeping as-is: '{normalized_job_title}'")
-        
-        logger.debug(f"Creating UserEmails record with normalized_job_title: '{normalized_job_title}'")
+        raw_job_title = message_data.get("job_title")
+        job_title = raw_job_title.title() if raw_job_title and raw_job_title.lower() not in ("", "null", "none") else "Unknown"
                 
         record = UserEmails(
             id=message_data["id"],
@@ -87,7 +64,6 @@ def create_user_email(user_id: str, message_data: dict, db_session) -> UserEmail
             received_at=received_at,
             subject=message_data["subject"],
             job_title=job_title,
-            normalized_job_title=normalized_job_title,
             email_from=message_data["from"]
         )
 

@@ -8,6 +8,13 @@ FINISHED = "finished"
 STARTED = "started"
 CANCELLED = "cancelled"
 
+# Stop reasons for incomplete scans
+STOP_REASON_USER_CANCELLED = "user_cancelled"
+STOP_REASON_RATE_LIMITED = "rate_limited"
+STOP_REASON_MONTHLY_CAP = "monthly_cap"
+STOP_REASON_GMAIL_EXPIRED = "gmail_expired"
+STOP_REASON_ERROR = "error"
+
 
 class TaskRuns(SQLModel, table=True):
     __tablename__ = "processing_task_runs"
@@ -20,9 +27,14 @@ class TaskRuns(SQLModel, table=True):
         nullable=False,
     )
     status: str = Field(nullable=False)
+    stop_reason: str | None = Field(default=None, nullable=True)  # Why the scan stopped (if not completed)
     total_emails: int = 0
     processed_emails: int = 0
     applications_found: int = 0
+    history_sync_completed: bool = Field(default=False, nullable=False)
+    scan_start_date: datetime | None = Field(default=None, nullable=True)
+    scan_end_date: datetime | None = Field(default=None, nullable=True)
+    last_processed_date: datetime | None = Field(default=None, nullable=True)  # Latest email date scanned (for incremental)
 
     user: Users = Relationship()
 

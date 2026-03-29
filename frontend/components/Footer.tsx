@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import NextLink from "next/link";
 
 import { siteConfig } from "@/config/site";
@@ -18,7 +19,9 @@ const ExternalLinkIcon = () => (
 
 const Footer = () => {
 	const [isPremium, setIsPremium] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+	const router = useRouter();
 
 	useEffect(() => {
 		const checkPremiumStatus = async () => {
@@ -37,6 +40,39 @@ const Footer = () => {
 		};
 		checkPremiumStatus();
 	}, [apiUrl]);
+
+	const handleUpgrade = async () => {
+		if (!apiUrl) {
+			router.push("/pricing");
+			return;
+		}
+		setIsLoading(true);
+		try {
+			const response = await fetch(`${apiUrl}/payment/checkout`, {
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					amount_cents: 500,
+					trigger_type: "footer",
+					is_recurring: true
+				})
+			});
+			if (response.ok) {
+				const data = await response.json();
+				if (data.checkout_url) {
+					window.location.href = data.checkout_url;
+					return;
+				}
+			}
+			// If checkout fails (not logged in, etc.), redirect to pricing page
+			router.push("/pricing");
+		} catch {
+			router.push("/pricing");
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
 	return (
 		<footer className="w-full border-t border-divider bg-content1 dark:bg-content1">
@@ -63,12 +99,13 @@ const Footer = () => {
 								<p className="text-sm sm:text-base text-foreground">
 									Your job search moves fast. Let your tracker keep up.
 								</p>
-								<NextLink
-									className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors"
-									href={siteConfig.links.pricing}
+								<button
+									className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary-600 transition-colors disabled:opacity-50"
+									disabled={isLoading}
+									onClick={handleUpgrade}
 								>
-									Try auto-refresh →
-								</NextLink>
+									{isLoading ? "Loading..." : "Get updates twice a day →"}
+								</button>
 							</>
 						)}
 					</div>
@@ -195,16 +232,6 @@ const Footer = () => {
 							Contribute
 						</h4>
 						<ul className="space-y-3">
-							<li>
-								<a
-									className="text-sm text-default-500 hover:text-foreground transition-colors"
-									href={siteConfig.links.donate}
-									rel="noopener noreferrer"
-									target="_blank"
-								>
-									Donate <ExternalLinkIcon />
-								</a>
-							</li>
 							<li>
 								<NextLink
 									className="text-sm text-default-500 hover:text-foreground transition-colors"

@@ -5,6 +5,7 @@ from sqlmodel import select
 import database
 from session.session_layer import validate_session
 from db.users import Users, CoachClientLink
+from utils.billing_utils import is_premium_eligible
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -23,12 +24,14 @@ class CoachClientResponse:
 @limiter.limit("10/minute")
 async def list_coach_clients(request: Request, db_session: database.DBSession, user_id: str = Depends(validate_session)) -> List[dict]:
     """Return active clients for authenticated coach."""
-    # Verify caller is a coach
+    # Verify caller is a coach AND has premium access
     coach = db_session.exec(select(Users).where(Users.user_id == user_id)).first()
     if not coach:
         raise HTTPException(status_code=401, detail="User not found")
     if coach.role != "coach":
         raise HTTPException(status_code=403, detail="Access denied: not a coach")
+    if not is_premium_eligible(db_session, coach):
+        raise HTTPException(status_code=403, detail="Access denied: coach access requires premium plan")
 
     # NOTE: Use explicit == None comparison so SQLAlchemy generates IS NULL; avoid Python `is None` in the WHERE clause.
     statement = select(CoachClientLink).where(

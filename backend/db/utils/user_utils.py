@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def get_last_email_date(user_id: str, db_session) -> Optional[datetime]:
     """
-    Checks date of user's most recent email 
+    Checks date of user's most recent email
 
     """
     db_session.expire_all()  # Ensure we get fresh data
@@ -19,6 +19,20 @@ def get_last_email_date(user_id: str, db_session) -> Optional[datetime]:
         .where(UserEmails.user_id == user_id)
     ).one() # aggregates in SQL to a single row
     logger.info("user_id: %s get_last_email_date: %s", user_id, row)
+    return row
+
+
+def get_earliest_email_date(user_id: str, db_session) -> Optional[datetime]:
+    """
+    Checks date of user's earliest (oldest) email
+    """
+    db_session.expire_all()
+    db_session.commit()
+    row = db_session.exec(
+        select(func.min(UserEmails.received_at))
+        .where(UserEmails.user_id == user_id)
+    ).one()
+    logger.info("user_id: %s get_earliest_email_date: %s", user_id, row)
     return row
 
 

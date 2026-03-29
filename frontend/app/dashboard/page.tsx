@@ -7,7 +7,6 @@ import React from "react";
 import posthog from "posthog-js";
 
 import JobApplicationsDashboard, { Application } from "@/components/JobApplicationsDashboard";
-import ContributorBadge from "@/components/ContributorBadge";
 import SettingsModal from "@/components/SettingsModal";
 import ProcessingBanner from "@/components/ProcessingBanner";
 import ChangeStartDateModal from "@/components/ChangeStartDateModal";
@@ -24,6 +23,9 @@ interface ProcessingStatus {
 	applications_found: number;
 	last_scan_at: string | null;
 	should_rescan: boolean;
+	scan_start_date: string | null;
+	scan_end_date: string | null;
+	stop_reason: "user_cancelled" | "rate_limited" | "monthly_cap" | "gmail_expired" | "error" | null;
 }
 
 export default function Dashboard() {
@@ -47,23 +49,36 @@ export default function Dashboard() {
 	const [companyFilter, setCompanyFilter] = useState("");
 	const [hideRejections, setHideRejections] = useState<boolean>(true);
 	const [hideApplicationConfirmations, setHideApplicationConfirmations] = useState<boolean>(false);
-	const [normalizedJobTitleFilter, setNormalizedJobTitleFilter] = useState("");
 
 	// Premium status state
-	const [contributionCents, setContributionCents] = useState(0);
 	const [showSettingsModal, setShowSettingsModal] = useState(false);
 	const [isPremium, setIsPremium] = useState(false);
+	const [scanEndDate, setScanEndDate] = useState<string | null>(null);
+	const [monthlyEmailsUsed, setMonthlyEmailsUsed] = useState(0);
+	const [monthlyEmailCap, setMonthlyEmailCap] = useState<number | null>(null);
+	const [monthlyResetDate, setMonthlyResetDate] = useState<string | null>(null);
+
+	// Free-tier hidden history state (US-004)
+	const [hiddenEmailCount, setHiddenEmailCount] = useState(0);
+	const [hiddenCutoffDate, setHiddenCutoffDate] = useState<string | null>(null);
 
 	// Processing status state
 	const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
+	const [cancelling, setCancelling] = useState(false);
 	const [showSessionExpired, setShowSessionExpired] = useState(false);
-	const [autoRescanTriggered, setAutoRescanTriggered] = useState(false);
+	const [dismissedStopReason, setDismissedStopReason] = useState<string | null>(null);
+	const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
+	const [cooldownSeconds, setCooldownSeconds] = useState(0);
+	const [initialized, setInitialized] = useState(false);
 
 	// Start date state
 	const [startDate, setStartDate] = useState<string | null>(null);
 	const [showStartDateModal, setShowStartDateModal] = useState(false);
 	const [updatingStartDate, setUpdatingStartDate] = useState(false);
+
+	// Upgrade checkout state
+	const [checkoutLoading, setCheckoutLoading] = useState(false);
 
 	// Step-Up Auth state for sensitive actions (e.g., CSV download, Coach View-As)
 	const [requiresStepUp, setRequiresStepUp] = useState(false);
@@ -80,14 +95,10 @@ export default function Dashboard() {
 				!searchTerm ||
 				item.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 				item.job_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				item.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				(item.normalized_job_title &&
-					item.normalized_job_title.toLowerCase().includes(searchTerm.toLowerCase()));
+				item.subject.toLowerCase().includes(searchTerm.toLowerCase());
 
 			const matchesStatus = !statusFilter || item.application_status === statusFilter;
 			const matchesCompany = !companyFilter || item.company_name === companyFilter;
-			const matchesNormalizedJobTitle =
-				!normalizedJobTitleFilter || item.normalized_job_title === normalizedJobTitleFilter;
 
 			const isNotRejection = !hideRejections || !item.application_status.toLowerCase().includes("reject");
 
@@ -95,24 +106,9 @@ export default function Dashboard() {
 				!hideApplicationConfirmations ||
 				!item.application_status.toLowerCase().includes("application confirmation");
 
-			return (
-				matchesSearch &&
-				matchesStatus &&
-				matchesCompany &&
-				matchesNormalizedJobTitle &&
-				isNotRejection &&
-				isNotApplicationConfirmation
-			);
+			return matchesSearch && matchesStatus && matchesCompany && isNotRejection && isNotApplicationConfirmation;
 		});
-	}, [
-		data,
-		searchTerm,
-		statusFilter,
-		companyFilter,
-		normalizedJobTitleFilter,
-		hideRejections,
-		hideApplicationConfirmations
-	]);
+	}, [data, searchTerm, statusFilter, companyFilter, hideRejections, hideApplicationConfirmations]);
 
 	// Fix for "1 of NaN": Dynamically compute total pages from filtered data
 	const computedTotalPages = useMemo(() => {
@@ -150,12 +146,62 @@ export default function Dashboard() {
 		return `${diffDays} days ago`;
 	};
 
+	// Cooldown timer for manual refresh (60 seconds)
+	useEffect(() => {
+		if (!lastRefreshTime) return;
+
+		const updateCooldown = () => {
+			const elapsed = Math.floor((Date.now() - lastRefreshTime) / 1000);
+			const remaining = Math.max(0, 60 - elapsed);
+			setCooldownSeconds(remaining);
+
+			if (remaining === 0) {
+				setLastRefreshTime(null);
+			}
+		};
+
+		updateCooldown();
+		const interval = setInterval(updateCooldown, 1000);
+		return () => clearInterval(interval);
+	}, [lastRefreshTime]);
+
+	// Handle upgrade checkout
+	const handleUpgrade = async (triggerType = "dashboard") => {
+		setCheckoutLoading(true);
+		posthog.capture("upgrade_clicked", { trigger_type: triggerType });
+
+		try {
+			const response = await fetch(`${apiUrl}/payment/checkout`, {
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					amount_cents: 500,
+					trigger_type: triggerType,
+					is_recurring: true
+				})
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				window.open(data.checkout_url, "_blank", "noopener,noreferrer");
+			} else {
+				console.error("Failed to create checkout session");
+			}
+		} catch (error) {
+			console.error("Upgrade error:", error);
+		} finally {
+			setCheckoutLoading(false);
+		}
+	};
+
 	// Handle manual refresh
 	const handleRefresh = async () => {
-		if (refreshing || processingStatus?.status === "processing") return;
+		if (refreshing || processingStatus?.status === "processing" || cooldownSeconds > 0) return;
 
 		posthog.capture("manual_refresh_clicked");
 		setRefreshing(true);
+		setLastRefreshTime(Date.now());
 		try {
 			const response = await fetch(`${apiUrl}/processing/start`, {
 				method: "POST",
@@ -195,6 +241,52 @@ export default function Dashboard() {
 			});
 		} finally {
 			setRefreshing(false);
+		}
+	};
+
+	// Handle cancel scan
+	const handleCancelScan = async () => {
+		if (cancelling || processingStatus?.status !== "processing") return;
+
+		posthog.capture("scan_cancel_clicked");
+		setCancelling(true);
+		try {
+			const response = await fetch(`${apiUrl}/processing/cancel`, {
+				method: "POST",
+				credentials: "include"
+			});
+
+			if (response.ok) {
+				addToast({
+					title: "Scan cancelled",
+					color: "primary"
+				});
+				// Refresh status to update UI
+				const statusResponse = await fetch(`${apiUrl}/processing/status`, {
+					method: "GET",
+					credentials: "include"
+				});
+				if (statusResponse.ok) {
+					const statusData = await statusResponse.json();
+					setProcessingStatus(statusData);
+				}
+				// Refresh emails to show any found before cancellation
+				await fetchData();
+			} else if (response.status === 404) {
+				addToast({
+					title: "No scan in progress",
+					color: "warning"
+				});
+			}
+		} catch (error) {
+			console.error("Error cancelling scan:", error);
+			addToast({
+				title: "Failed to cancel scan",
+				description: "Please try again",
+				color: "danger"
+			});
+		} finally {
+			setCancelling(false);
 		}
 	};
 
@@ -243,7 +335,12 @@ export default function Dashboard() {
 	}, [apiUrl]);
 
 	// Handle start date update
-	const handleStartDateSave = async (data: { preset: string; custom_date?: string }) => {
+	const handleStartDateSave = async (data: {
+		preset: string;
+		custom_date?: string;
+		fetch_order: string;
+		end_date: string | null;
+	}) => {
 		setUpdatingStartDate(true);
 		posthog.capture("start_date_changed", { preset: data.preset });
 
@@ -328,19 +425,6 @@ export default function Dashboard() {
 		prevProcessingStatus.current = processingStatus?.status;
 	}, [processingStatus?.status]);
 
-	useEffect(() => {
-		if (
-			processingStatus?.should_rescan &&
-			processingStatus?.status !== "processing" &&
-			!autoRescanTriggered &&
-			!refreshing
-		) {
-			setAutoRescanTriggered(true);
-			posthog.capture("auto_rescan_triggered");
-			handleRefresh();
-		}
-	}, [processingStatus?.should_rescan, processingStatus?.status, autoRescanTriggered, refreshing]);
-
 	const fetchPremiumStatus = useCallback(async () => {
 		try {
 			const response = await fetch(`${apiUrl}/settings/premium-status`, {
@@ -351,7 +435,10 @@ export default function Dashboard() {
 			if (response.ok) {
 				const data = await response.json();
 				setIsPremium(data.is_premium);
-				setContributionCents(data.monthly_contribution_cents || 0);
+				setMonthlyEmailsUsed(data.emails_processed_this_month ?? 0);
+				setMonthlyEmailCap(data.monthly_email_cap ?? null);
+				setMonthlyResetDate(data.monthly_reset_date ?? null);
+				setScanEndDate(data.scan_end_date ?? null);
 			}
 		} catch (error) {
 			console.error("Error fetching premium status:", error);
@@ -381,11 +468,11 @@ export default function Dashboard() {
 			if (onboardingResp.ok) {
 				const data = await onboardingResp.json();
 				if (!data.has_completed_onboarding) {
-					router.push("/onboarding");
+					router.replace("/onboarding");
 					return;
 				}
 				if (!data.has_email_sync_configured) {
-					router.push("/email-sync-setup");
+					router.replace("/email-sync-setup");
 					return;
 				}
 			}
@@ -414,7 +501,7 @@ export default function Dashboard() {
 				if (response.status === 403) {
 					const onboardingRequired = response.headers.get("X-Onboarding-Required");
 					if (onboardingRequired === "true") {
-						router.push("/onboarding");
+						router.replace("/onboarding");
 						return;
 					}
 				}
@@ -430,6 +517,22 @@ export default function Dashboard() {
 			if (result.totalPages) setTotalPages(result.totalPages);
 
 			setData(Array.isArray(result) ? result : result.data || []);
+
+			// Fetch count of emails hidden behind the free-tier 30-day window (US-004)
+			try {
+				const hiddenResp = await fetch(`${apiUrl}/emails/hidden-count`, {
+					method: "GET",
+					credentials: "include",
+					headers
+				});
+				if (hiddenResp.ok) {
+					const hiddenData = await hiddenResp.json();
+					setHiddenEmailCount(hiddenData.hidden_count ?? 0);
+					setHiddenCutoffDate(hiddenData.cutoff_date ?? null);
+				}
+			} catch {
+				// non-critical; ignore
+			}
 		} catch {
 			setError("Failed to load applications");
 		} finally {
@@ -507,10 +610,7 @@ export default function Dashboard() {
 		}
 	}, [searchParams, downloadCsv]);
 
-	useEffect(() => {
-		fetchData();
-	}, [apiUrl, router, viewAs]);
-
+	// Initialize role and coach clients before fetching data
 	useEffect(() => {
 		const init = async () => {
 			try {
@@ -537,9 +637,17 @@ export default function Dashboard() {
 			} catch {
 				/*ignore*/
 			}
+			setInitialized(true);
 		};
 		init();
 	}, [apiUrl]);
+
+	// Fetch data only after initialization is complete
+	useEffect(() => {
+		if (initialized) {
+			fetchData();
+		}
+	}, [initialized, viewAs]);
 
 	const nextPage = () => {
 		if (currentPage < computedTotalPages) {
@@ -589,51 +697,149 @@ export default function Dashboard() {
 
 			{processingStatus?.status === "processing" && (
 				<ProcessingBanner
+					cancelling={cancelling}
 					found={processingStatus.applications_found}
 					processed={processingStatus.processed_emails}
+					scanEndDate={processingStatus.scan_end_date}
+					scanStartDate={processingStatus.scan_start_date}
 					total={processingStatus.total_emails}
+					onCancel={handleCancelScan}
 				/>
 			)}
 
-			{contributionCents > 0 && (
-				<div className="mb-4 p-4 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center gap-2">
-					<ContributorBadge monthlyCents={contributionCents} onClick={() => setShowSettingsModal(true)} />
-					<span className="text-sm text-gray-600 dark:text-gray-300">
-						Your contribution helps us help more jobseekers.
-					</span>
-				</div>
-			)}
+			{/* Return-after-incomplete banners */}
+			{processingStatus?.status !== "processing" &&
+				processingStatus?.stop_reason &&
+				dismissedStopReason !== processingStatus.stop_reason && (
+					<div
+						className={`mx-6 mt-4 p-4 rounded-lg border flex items-start justify-between ${
+							processingStatus.stop_reason === "monthly_cap" ||
+							processingStatus.stop_reason === "user_cancelled"
+								? "bg-red-50 dark:bg-red-900 border-red-200 dark:border-red-800"
+								: processingStatus.stop_reason === "error" ||
+									  processingStatus.stop_reason === "gmail_expired"
+									? "bg-red-50 dark:bg-red-900 border-red-200 dark:border-red-800"
+									: "bg-amber-50 dark:bg-amber-900 border-amber-200 dark:border-amber-800"
+						}`}
+					>
+						<div className="flex-1">
+							<p
+								className={`text-sm font-medium ${
+									processingStatus.stop_reason === "monthly_cap" ||
+									processingStatus.stop_reason === "error" ||
+									processingStatus.stop_reason === "gmail_expired"
+										? "text-red-800 dark:text-red-200"
+										: "text-amber-800 dark:text-amber-200"
+								}`}
+							>
+								{processingStatus.stop_reason === "user_cancelled" &&
+									"Your last scan was cancelled. Emails found before stopping are shown."}
+								{processingStatus.stop_reason === "rate_limited" &&
+									"Gmail rate limit hit. Scan will auto-resume shortly."}
+								{processingStatus.stop_reason === "monthly_cap" &&
+									`Monthly limit reached. Resets ${monthlyResetDate ? new Date(monthlyResetDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "on the 1st"}.`}
+								{processingStatus.stop_reason === "gmail_expired" && "Gmail access expired."}
+								{processingStatus.stop_reason === "error" &&
+									"Something went wrong during your last scan."}
+							</p>
+							<div className="mt-2 flex gap-2">
+								{processingStatus.stop_reason === "user_cancelled" && (
+									<button
+										className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+										onClick={handleRefresh}
+									>
+										Resume scan
+									</button>
+								)}
+								{processingStatus.stop_reason === "monthly_cap" && !isPremium && (
+									<button
+										className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+										onClick={() => handleUpgrade("monthly_cap_banner")}
+									>
+										Upgrade for 5,000 emails/month
+									</button>
+								)}
+								{processingStatus.stop_reason === "gmail_expired" && (
+									<a
+										className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+										href={`${apiUrl}/auth/google/email-sync`}
+									>
+										Reconnect Gmail
+									</a>
+								)}
+								{processingStatus.stop_reason === "error" && (
+									<button
+										className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+										onClick={handleRefresh}
+									>
+										Try again
+									</button>
+								)}
+							</div>
+						</div>
+						<button
+							className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-2"
+							onClick={() => setDismissedStopReason(processingStatus.stop_reason)}
+						>
+							<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path
+									d="M6 18L18 6M6 6l12 12"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+								/>
+							</svg>
+						</button>
+					</div>
+				)}
 
-			<div className="flex items-center justify-between mb-4 px-6 pt-4">
+			<div className="flex items-center justify-between px-6 pt-4">
 				<p className="text-sm text-gray-500 dark:text-gray-400">
 					Tracking since {formatStartDate(startDate)}
 					<button
 						className="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
 						disabled={processingStatus?.status === "processing"}
-						title="Edit start date"
+						title={isPremium ? "Edit start date" : "Unlock full history"}
 						onClick={() => {
-							posthog.capture("start_date_edit_opened");
+							posthog.capture("start_date_edit_opened", { is_premium: isPremium });
 							setShowStartDateModal(true);
 						}}
 					>
-						<svg className="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-							/>
-						</svg>
+						{isPremium ? (
+							<svg className="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path
+									d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+								/>
+							</svg>
+						) : (
+							<svg className="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path
+									d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+								/>
+							</svg>
+						)}
 					</button>
 					<span className="mx-2">•</span>
-					Last synced:{" "}
 					{processingStatus?.status === "processing"
 						? "Scanning now..."
-						: formatLastSynced(processingStatus?.last_scan_at || null)}
+						: `Last synced: ${formatLastSynced(processingStatus?.last_scan_at || null)}`}
 				</p>
 				<button
-					className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white disabled:opacity-50 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-					disabled={refreshing || processingStatus?.status === "processing"}
+					className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+					disabled={refreshing || processingStatus?.status === "processing" || cooldownSeconds > 0}
+					title={
+						processingStatus?.status === "processing"
+							? "Refresh available after scan completes"
+							: cooldownSeconds > 0
+								? `Last refreshed ${cooldownSeconds}s ago`
+								: undefined
+					}
 					onClick={handleRefresh}
 				>
 					<svg
@@ -649,7 +855,7 @@ export default function Dashboard() {
 							strokeWidth={2}
 						/>
 					</svg>
-					Refresh
+					{cooldownSeconds > 0 ? `${cooldownSeconds}s` : "Refresh"}
 				</button>
 			</div>
 
@@ -675,6 +881,86 @@ export default function Dashboard() {
 				</div>
 			)}
 
+			{monthlyEmailCap !== null && monthlyEmailsUsed >= monthlyEmailCap && monthlyResetDate && (
+				<div className="mx-6 mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+					<div className="flex-1 text-sm text-red-800 dark:text-red-300">
+						{"You've reached your monthly limit — resets on "}
+						<span className="font-medium">
+							{new Date(monthlyResetDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+						</span>
+						{isPremium ? (
+							"."
+						) : (
+							<>
+								{", or "}
+								<button
+									className="underline font-medium"
+									onClick={() => handleUpgrade("cap_reached_banner")}
+								>
+									upgrade to Pro
+								</button>
+								{" for a higher limit."}
+							</>
+						)}
+					</div>
+				</div>
+			)}
+
+			{hiddenEmailCount > 0 && hiddenCutoffDate && !isPremium && (
+				<div className="mx-6 mb-4 mt-4 px-4 py-3 rounded-lg bg-content1 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+					<div>
+						<p className="text-sm text-foreground">
+							{hiddenEmailCount} older email{hiddenEmailCount === 1 ? " isn't" : "s aren't"} shown on your
+							free plan.
+						</p>
+						<p className="text-sm text-foreground-500">
+							They&apos;re still yours —{" "}
+							<button className="text-blue-600 dark:text-blue-400 hover:underline" onClick={downloadCsv}>
+								export everything to CSV
+							</button>
+							.
+						</p>
+					</div>
+					<button
+						className="shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+						style={{ backgroundColor: "#f59e0b", color: "#1f2937" }}
+						onClick={() => handleUpgrade("hidden_emails_banner")}
+					>
+						Upgrade — $5/mo
+					</button>
+				</div>
+			)}
+
+			{/* Cap-reached banner */}
+			{monthlyEmailCap && monthlyEmailsUsed >= monthlyEmailCap && processingStatus?.status !== "processing" && (
+				<div className="mx-6 mb-4 px-4 py-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+					<div className="flex-1">
+						<p className="text-sm font-medium text-red-800 dark:text-red-200">
+							You&apos;ve processed {monthlyEmailsUsed.toLocaleString()} of{" "}
+							{monthlyEmailCap.toLocaleString()} emails this month.
+						</p>
+						<p className="text-sm text-red-700 dark:text-red-300 mt-1">
+							Resets{" "}
+							{monthlyResetDate
+								? new Date(monthlyResetDate).toLocaleDateString("en-US", {
+										month: "short",
+										day: "numeric"
+									})
+								: "on the 1st"}
+							.
+						</p>
+					</div>
+					{!isPremium && (
+						<button
+							className="shrink-0 inline-flex items-center px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+							onClick={() => handleUpgrade("cap_reached_banner")}
+						>
+							Upgrade for 5,000 emails/month
+						</button>
+					)}
+				</div>
+			)}
+
 			<JobApplicationsDashboard
 				companyFilter={companyFilter}
 				currentPage={activePage} // Fix: Uses reactive activePage
@@ -682,8 +968,8 @@ export default function Dashboard() {
 				downloading={downloading}
 				hideApplicationConfirmations={hideApplicationConfirmations}
 				hideRejections={hideRejections}
+				isScanning={processingStatus?.status === "processing"}
 				loading={loading}
-				normalizedJobTitleFilter={normalizedJobTitleFilter}
 				readOnly={!!viewAs}
 				searchTerm={searchTerm}
 				statusFilter={statusFilter}
@@ -702,10 +988,6 @@ export default function Dashboard() {
 					setCurrentPage(1);
 				}}
 				onNextPage={nextPage}
-				onNormalizedJobTitleFilterChange={(v) => {
-					setNormalizedJobTitleFilter(v);
-					setCurrentPage(1);
-				}}
 				onPrevPage={prevPage}
 				onRefreshData={fetchData}
 				onRemoveItem={handleRemoveItem}
@@ -777,8 +1059,10 @@ export default function Dashboard() {
 				currentDate={startDate}
 				isLoading={updatingStartDate}
 				isOpen={showStartDateModal}
+				isPremium={isPremium}
 				onClose={() => setShowStartDateModal(false)}
 				onSave={handleStartDateSave}
+				onUpgrade={() => handleUpgrade("start_date_modal")}
 			/>
 		</>
 	);

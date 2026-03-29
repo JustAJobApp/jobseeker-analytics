@@ -16,23 +16,31 @@ class Users(SQLModel, table=True):
     user_email: str = Field(nullable=False)
     start_date: datetime = Field(nullable=True) # Start date for job applications
     # Billing fields
-    is_active: bool = Field(default=False, nullable=False)
     stripe_customer_id: str | None = Field(default=None, nullable=True)
     # Add role field to distinguish generic users from coaches
-    role: str = Field(default="jobseeker") # 'jobseeker', 'coach'
+    role: str = Field(default="") # '' (unset) | 'jobseeker' | 'coach'
     # Onboarding fields
     onboarding_completed_at: datetime | None = Field(default=None, nullable=True)  # When start date was set
     # Email sync fields (separate from signup auth)
     has_email_sync_configured: bool = Field(default=False, nullable=False)
     sync_email_address: str | None = Field(default=None, nullable=True)  # Email address being synced (can differ from user_email)
-    # Contribution fields for choose-your-price model
-    monthly_contribution_cents: int = Field(default=0, nullable=False)  # 0 = free user
-    contribution_started_at: datetime | None = Field(default=None, nullable=True)  # When they first paid
-    total_contributed_cents: int = Field(default=0, nullable=False)  # Lifetime contributions
+    # Subscription billing fields
+    subscription_price_cents: int = Field(default=0, nullable=False)  # 0 = free user
+    subscribed_at: datetime | None = Field(default=None, nullable=True)  # When they first paid
+    total_paid_cents: int = Field(default=0, nullable=False)  # Lifetime payments
     stripe_subscription_id: str | None = Field(default=None, nullable=True)  # For subscription management
     # Background sync fields
     sync_tier: str = Field(default="none", nullable=False)  # 'none' or 'premium'
     last_background_sync_at: datetime | None = Field(default=None, nullable=True)  # Last background sync timestamp
+    # Monthly email processing cap tracking
+    emails_processed_this_month: int = Field(default=0, nullable=False)
+    monthly_emails_reset_at: datetime | None = Field(default=None, nullable=True)
+    # Scan preferences
+    fetch_order: str = Field(default="recent_first", nullable=False)
+    scan_end_date: datetime | None = Field(default=None, nullable=True)
+    # Plan / promo
+    plan: str = Field(default="free", nullable=False)  # 'free' | 'promo' | 'paid'
+    promo_code_used: str | None = Field(default=None, nullable=True)
 
 class CoachClientLink(SQLModel, table=True):
     __tablename__ = "coach_client_link"

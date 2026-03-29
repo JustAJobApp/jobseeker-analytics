@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardBody, CardHeader, Divider } from "@heroui/react";
 import { z } from "zod";
@@ -17,6 +17,7 @@ function LoginContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
+	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 	// Define a strict schema for the query parameters
 	const querySchema = z.object({
 		signup: z
@@ -26,7 +27,9 @@ function LoginContent() {
 		reconnect: z
 			.string()
 			.optional()
-			.transform((val) => val === "true") // Convert "true" string to boolean, everything else to false
+			.transform((val) => val === "true"), // Convert "true" string to boolean, everything else to false
+		redirect: z.string().optional(),
+		action: z.string().optional()
 	});
 
 	// Use Zod to parse the raw search params safely
@@ -36,15 +39,36 @@ function LoginContent() {
 	const isSignup = validatedParams.success ? validatedParams.data.signup : false;
 	// Check if this is a reconnect flow (session expired, user wants to reconnect Gmail)
 	const isReconnect = validatedParams.success ? validatedParams.data.reconnect : false;
+	const redirectTo = validatedParams.success ? validatedParams.data.redirect : undefined;
+	const action = validatedParams.success ? validatedParams.data.action : undefined;
 
 	useEffect(() => {
 		// On load, check for existing session (but skip redirect if reconnecting)
 		if (!isReconnect) {
 			checkAuth(apiUrl).then((authenticated) => {
 				if (authenticated) {
-					router.push("/dashboard");
+					// Use redirect param if provided, otherwise go to dashboard
+					const destination = redirectTo || "/dashboard";
+					// Preserve action param if redirecting back to pricing
+					if (action && redirectTo) {
+						router.push(`${destination}?action=${action}`);
+					} else {
+						router.push(destination);
+					}
 				}
 			});
+		} else {
+			// For reconnect flow, check if user has completed onboarding
+			fetch(`${apiUrl}/api/users/onboarding-status`, { credentials: "include" })
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data) => {
+					if (data?.has_completed_onboarding) {
+						setHasCompletedOnboarding(true);
+					}
+				})
+				.catch(() => {
+					/* ignore */
+				});
 		}
 	}, [apiUrl, router, isReconnect]);
 
@@ -93,14 +117,7 @@ function LoginContent() {
 						<Divider className="my-6" />
 
 						<p className="text-xs text-default-500 text-center">
-							{isReconnect ? (
-								<>
-									Changed your mind?{" "}
-									<a className="text-primary hover:underline" href="/dashboard">
-										Back to dashboard
-									</a>
-								</>
-							) : isSignup ? (
+							{isSignup ? (
 								<>
 									Already have an account?{" "}
 									<a className="text-primary hover:underline" href="/login">
@@ -108,12 +125,14 @@ function LoginContent() {
 									</a>
 								</>
 							) : (
-								<>
-									New to JustAJobApp?{" "}
-									<a className="text-primary hover:underline" href="/login?signup=true">
-										Create an account
-									</a>
-								</>
+								isSignup && (
+									<>
+										New to JustAJobApp?{" "}
+										<a className="text-primary hover:underline" href="/login?signup=true">
+											Create an account
+										</a>
+									</>
+								)
 							)}
 						</p>
 
