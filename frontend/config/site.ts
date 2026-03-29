@@ -71,6 +71,7 @@ export const siteConfig = {
 		neverSearchAlone: "https://www.neversearchalone.com/",
 		samStruanResume: "https://youtu.be/AUH-IhT_SL0?si=cyfO67ztDvu-8ir4",
 		waitlist: "https://its.justajobapp.com/",
-		homepage: "https://justajobapp.com"
+		homepage: "https://justajobapp.com",
+		shop: "https://www.bonfire.com/store/justajobapp/"
 	}
 };
