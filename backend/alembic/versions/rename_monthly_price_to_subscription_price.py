@@ -11,7 +11,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'rename_monthly_to_subscription_price'
+revision: str = 'rename_sub_price_cents'
 down_revision: Union[str, None] = 'rename_contributions_to_payments'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
