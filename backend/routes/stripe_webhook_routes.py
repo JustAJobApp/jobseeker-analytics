@@ -54,11 +54,10 @@ async def stripe_webhook(
         session = event["data"]["object"]
         metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
-        amount_cents_str = metadata.get("amount_cents")
         checkout_session_id = session.get("id")
 
         logger.info(
-            f"checkout.session.completed - user_id: {user_id}, amount: {amount_cents_str}, subscription: {session.get('subscription')}"
+            f"checkout.session.completed - user_id: {user_id}, subscription: {session.get('subscription')}"
         )
 
         if not user_id:
@@ -93,15 +92,11 @@ async def stripe_webhook(
             ).first()
             if user:
                 subscription_id = session.get("subscription")
-                amount_total = session.get("amount_total", 0)
-
-                # Determine amount - prefer explicit amount_cents, fall back to amount_total
-                amount_cents = (
-                    int(amount_cents_str) if amount_cents_str else amount_total
-                )
+                # Use amount_total from Stripe directly — the source of truth
+                amount_cents = session.get("amount_total", 0)
 
                 # Set monthly price and subscription
-                user.monthly_price_cents = amount_cents
+                user.subscription_price_cents = amount_cents
                 user.stripe_subscription_id = subscription_id
                 # Update plan field if user is paying $5+/month (unless promo)
                 if amount_cents >= PREMIUM_MONTHLY_PRICE_CENTS and user.plan != "promo":
@@ -200,7 +195,7 @@ async def stripe_webhook(
             ).first()
 
             if user:
-                user.monthly_price_cents = 0
+                user.subscription_price_cents = 0
                 user.stripe_subscription_id = None
                 # Reset plan to free (unless promo)
                 if user.plan != "promo":
@@ -228,8 +223,8 @@ async def stripe_webhook(
                 ).first()
 
                 if user and new_amount > 0:
-                    old_amount = user.monthly_price_cents or 0
-                    user.monthly_price_cents = new_amount
+                    old_amount = user.subscription_price_cents or 0
+                    user.subscription_price_cents = new_amount
                     if user.plan != "promo":
                         if new_amount >= PREMIUM_MONTHLY_PRICE_CENTS:
                             user.plan = "paid"

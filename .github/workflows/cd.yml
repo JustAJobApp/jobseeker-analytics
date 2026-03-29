@@ -71,6 +71,8 @@ jobs:
         cookie-secret: ${{ env.COOKIE_SECRET }}
         stripe-secret-key: ${{ env.STRIPE_SECRET_KEY }}
         stripe-webhook-secret: ${{ env.STRIPE_WEBHOOK_SECRET }}
+        stripe-monthly-price-id: ${{ env.STRIPE_MONTHLY_PRICE_ID }}
+        stripe-yearly-price-id: ${{ env.STRIPE_YEARLY_PRICE_ID }}
         google-api-key: ${{ env.GOOGLE_API_KEY }}
         ipinfo-token: ${{ env.IPINFO_TOKEN }}
         app-url: ${{ env.APP_URL }}

@@ -40,6 +40,12 @@ inputs:
   stripe-webhook-secret:
     description: Stripe Webhook Secret for verifying webhook signatures
     required: true
+  stripe-monthly-price-id:
+    description: Stripe Price ID for monthly premium subscription
+    required: true
+  stripe-yearly-price-id:
+    description: Stripe Price ID for yearly premium subscription
+    required: true
   origin:
     description: Origin
     required: true
@@ -57,6 +63,8 @@ runs:
       echo "::add-mask::${{ inputs.google-api-key }}"
       echo "::add-mask::${{ inputs.stripe-secret-key }}"
       echo "::add-mask::${{ inputs.stripe-webhook-secret }}"
+      echo "::add-mask::${{ inputs.stripe-monthly-price-id }}"
+      echo "::add-mask::${{ inputs.stripe-yearly-price-id }}"
       echo "::add-mask::${{ inputs.google-client-id }}"
       echo "::add-mask::${{ inputs.google-client-secret }}"
       echo "::add-mask::${{ inputs.ipinfo-token }}"
@@ -186,6 +194,8 @@ runs:
       GOOGLE_API_KEY: ${{ inputs.google-api-key }}
       STRIPE_SECRET_KEY: ${{ inputs.stripe-secret-key }}
       STRIPE_WEBHOOK_SECRET: ${{ inputs.stripe-webhook-secret }}
+      STRIPE_MONTHLY_PRICE_ID: ${{ inputs.stripe-monthly-price-id }}
+      STRIPE_YEARLY_PRICE_ID: ${{ inputs.stripe-yearly-price-id }}
       GOOGLE_CLIENT_ID: ${{ inputs.google-client-id }}
       GOOGLE_CLIENT_SECRET: ${{ inputs.google-client-secret }}
       GOOGLE_CLIENT_REDIRECT_URI: ${{ inputs.google-client-redirect-uri }}
@@ -204,6 +214,8 @@ runs:
       echo "::add-mask::${GOOGLE_API_KEY}"
       echo "::add-mask::${STRIPE_SECRET_KEY}"
       echo "::add-mask::${STRIPE_WEBHOOK_SECRET}"
+      echo "::add-mask::${STRIPE_MONTHLY_PRICE_ID}"
+      echo "::add-mask::${STRIPE_YEARLY_PRICE_ID}"
       echo "::add-mask::${GOOGLE_CLIENT_ID}"
       echo "::add-mask::${GOOGLE_CLIENT_SECRET}"
       echo "::add-mask::${GOOGLE_CLIENT_REDIRECT_URI}"
@@ -233,6 +245,8 @@ runs:
               \"COOKIE_SECRET\": \"${COOKIE_SECRET}\",
               \"STRIPE_SECRET_KEY\": \"${STRIPE_SECRET_KEY}\",
               \"STRIPE_WEBHOOK_SECRET\": \"${STRIPE_WEBHOOK_SECRET}\",
+              \"STRIPE_MONTHLY_PRICE_ID\": \"${STRIPE_MONTHLY_PRICE_ID}\",
+              \"STRIPE_YEARLY_PRICE_ID\": \"${STRIPE_YEARLY_PRICE_ID}\",
               \"APP_URL\": \"${APP_URL}\",
               \"API_URL\": \"${API_URL}\",
               \"ENV\": \"prod\",

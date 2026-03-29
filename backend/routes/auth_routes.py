@@ -328,7 +328,7 @@ async def getUser(request: Request, db_session: database.DBSession, user_id: str
         "has_completed_onboarding": user.onboarding_completed_at is not None,
         "has_email_sync_configured": user.has_email_sync_configured,
         "sync_email_address": user.sync_email_address,
-        "is_subscriber": (user.monthly_price_cents or 0) > 0,
+        "is_subscriber": (user.subscription_price_cents or 0) > 0,
         "subscribed_since": user.subscribed_at.isoformat() if user.subscribed_at else None,
         "has_active_coach": active_coach_link is not None
     }
