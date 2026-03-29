@@ -236,7 +236,6 @@ def get_credentials_for_background_task(
     Args:
         db_session: Database session
         user_id: User's unique ID
-        session_creds_json: Optional session credentials JSON for fallback
 
     Returns:
         Credentials object or None

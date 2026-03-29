@@ -24,10 +24,10 @@ class Users(SQLModel, table=True):
     # Email sync fields (separate from signup auth)
     has_email_sync_configured: bool = Field(default=False, nullable=False)
     sync_email_address: str | None = Field(default=None, nullable=True)  # Email address being synced (can differ from user_email)
-    # Contribution fields for choose-your-price model
-    monthly_contribution_cents: int = Field(default=0, nullable=False)  # 0 = free user
-    contribution_started_at: datetime | None = Field(default=None, nullable=True)  # When they first paid
-    total_contributed_cents: int = Field(default=0, nullable=False)  # Lifetime contributions
+    # Subscription billing fields
+    subscription_price_cents: int = Field(default=0, nullable=False)  # 0 = free user
+    subscribed_at: datetime | None = Field(default=None, nullable=True)  # When they first paid
+    total_paid_cents: int = Field(default=0, nullable=False)  # Lifetime payments
     stripe_subscription_id: str | None = Field(default=None, nullable=True)  # For subscription management
     # Background sync fields
     sync_tier: str = Field(default="none", nullable=False)  # 'none' or 'premium'

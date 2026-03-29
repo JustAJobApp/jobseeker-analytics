@@ -11,7 +11,7 @@ function ThankYouContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(true);
-	const [contributionAmount, setContributionAmount] = useState<number | null>(null);
+	const [monthlyPrice, setMonthlyPrice] = useState<number | null>(null);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
 	useEffect(() => {
@@ -33,7 +33,7 @@ function ThankYouContent() {
 
 				if (premiumRes.ok) {
 					const data = await premiumRes.json();
-					setContributionAmount(data.monthly_contribution_cents);
+					setMonthlyPrice(data.subscription_price_cents);
 				}
 
 				if (onboardingRes.ok) {
@@ -74,9 +74,9 @@ function ThankYouContent() {
 					<CardBody className="text-center py-8 px-6">
 						<div className="text-5xl mb-4">💙</div>
 						<h1 className="text-2xl font-bold mb-2">Thank you for supporting JustAJobApp!</h1>
-						{contributionAmount && (
+						{monthlyPrice && (
 							<p className="text-gray-600 dark:text-gray-300 mb-4">
-								Your ${contributionAmount / 100}/month helps us help more jobseekers.
+								Your ${monthlyPrice / 100}/month subscription is now active.
 							</p>
 						)}
 						<p className="text-sm text-gray-500 dark:text-gray-400 mb-6">

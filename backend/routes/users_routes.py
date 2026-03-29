@@ -28,14 +28,15 @@ class PremiumStatusResponse(BaseModel):
 
     is_premium: bool
     premium_reason: Optional[str]  # "coach", "coach_client", "paid", or None
-    monthly_contribution_cents: int
+    subscription_price_cents: int
     has_active_subscription: bool
     has_valid_credentials: bool
     last_background_sync_at: Optional[str]
-    contribution_started_at: Optional[str]
+    subscribed_at: Optional[str]
     cancel_at_period_end: bool = False
     subscription_ends_at: Optional[int] = None  # Unix timestamp when cancelled
     subscription_renews_at: Optional[int] = None  # Unix timestamp for next renewal
+    subscription_interval: Optional[str] = None  # "month" or "year"
     emails_processed_this_month: int = 0
     monthly_email_cap: int
     monthly_reset_date: Optional[str] = None  # ISO date of next reset (1st of next month)
@@ -75,6 +76,7 @@ async def get_premium_status(
     cancel_at_period_end = False
     subscription_ends_at = None
     subscription_renews_at = None
+    subscription_interval = None
     if user.stripe_subscription_id:
         try:
             get_stripe_key()
@@ -82,11 +84,12 @@ async def get_premium_status(
             cancel_at_period_end = subscription.get("cancel_at_period_end", False)
             if cancel_at_period_end:
                 subscription_ends_at = subscription.get("cancel_at")
-            # Get renewal date from subscription items (current_period_end moved here in newer Stripe API)
+            # Get renewal date and interval from subscription items
             items = subscription.get("items", {})
             items_data = items.get("data", [])
             if items_data:
                 subscription_renews_at = items_data[0].get("current_period_end")
+                subscription_interval = items_data[0].get("price", {}).get("recurring", {}).get("interval")
         except stripe.error.StripeError as e:
             logger.warning(f"Failed to fetch subscription status: {e}")
 
@@ -113,7 +116,7 @@ async def get_premium_status(
     return PremiumStatusResponse(
         is_premium=is_premium,
         premium_reason=premium_reason,
-        monthly_contribution_cents=user.monthly_contribution_cents,
+        subscription_price_cents=user.subscription_price_cents,
         has_active_subscription=user.stripe_subscription_id is not None,
         has_valid_credentials=has_valid_credentials,
         last_background_sync_at=(
@@ -121,14 +124,15 @@ async def get_premium_status(
             if user.last_background_sync_at
             else None
         ),
-        contribution_started_at=(
-            user.contribution_started_at.isoformat()
-            if user.contribution_started_at
+        subscribed_at=(
+            user.subscribed_at.isoformat()
+            if user.subscribed_at
             else None
         ),
         cancel_at_period_end=cancel_at_period_end,
         subscription_ends_at=subscription_ends_at,
         subscription_renews_at=subscription_renews_at,
+        subscription_interval=subscription_interval,
         emails_processed_this_month=emails_processed,
         monthly_email_cap=monthly_cap,
         monthly_reset_date=next_reset.isoformat(),
@@ -157,7 +161,7 @@ async def delete_account(
     from db.user_emails import UserEmails
     from db.processing_tasks import TaskRuns
     from db.oauth_credentials import OAuthCredentials
-    from db.contributions import Contributions
+    from db.payments import Payments
     from fastapi.responses import RedirectResponse
     from utils.config_utils import get_settings
 
@@ -222,13 +226,13 @@ async def delete_account(
         db_session.delete(cred_record)
     logger.info(f"Deleted {len(all_creds)} OAuth credentials for user {user_id}")
 
-    # Delete contributions (but keep for audit trail - mark as deleted instead)
-    contributions = db_session.exec(
-        select(Contributions).where(Contributions.user_id == user_id)
+    # Delete payment records
+    payments = db_session.exec(
+        select(Payments).where(Payments.user_id == user_id)
     ).all()
-    for contrib in contributions:
-        db_session.delete(contrib)
-    logger.info(f"Deleted {len(contributions)} contributions for user {user_id}")
+    for payment in payments:
+        db_session.delete(payment)
+    logger.info(f"Deleted {len(payments)} payment records for user {user_id}")
 
     # Delete the user record
     db_session.delete(user)
