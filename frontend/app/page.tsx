@@ -153,7 +153,7 @@ const Index = () => {
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 							{/* Short quote 1 */}
 							<div className="bg-content2 dark:bg-content2 rounded-xl p-8 border border-content3 dark:border-content3 shadow-lg">
-								<svg className="w-7 h-7 text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
+								<svg className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
 									<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
 								</svg>
 								<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
@@ -171,7 +171,7 @@ const Index = () => {
 							</div>
 							{/* Short quote 2 */}
 							<div className="bg-content2 dark:bg-content2 rounded-xl p-8 border border-content3 dark:border-content3 shadow-lg">
-								<svg className="w-7 h-7 text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
+								<svg className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
 									<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
 								</svg>
 								<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
@@ -196,7 +196,7 @@ const Index = () => {
 									F1-OPT · CS &amp; Engineering
 								</span>
 							</div>
-							<svg className="w-7 h-7 text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
+							<svg className="w-7 h-7 text-yellow-500 dark:text-foreground/30 mb-4" fill="currentColor" viewBox="0 0 24 24">
 								<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
 							</svg>
 							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-4">
@@ -204,7 +204,7 @@ const Index = () => {
 								color-coded 'Hiring Freeze' status in JustAJobApp that caught my eye. It prompted me to
 								go back and find the email —
 							</blockquote>
-							<p className="text-base italic px-3 py-2 rounded bg-yellow-700/30 text-yellow-300 dark:text-yellow-200 mb-4">
+							<p className="text-base italic px-3 py-2 rounded bg-yellow-700/30 text-yellow-900 dark:text-yellow-200 mb-4">
 								it wasn't a rejection, but an invitation to apply for a reopened position.
 							</p>
 							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
