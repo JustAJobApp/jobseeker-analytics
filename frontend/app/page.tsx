@@ -213,15 +213,13 @@ const Index = () => {
 							>
 								<path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h4v10h-10z" />
 							</svg>
-							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-4">
+							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
 								"I receive so many emails a day that I mistook one for a rejection. Later, I saw a
 								color-coded 'Hiring Freeze' status in JustAJobApp that caught my eye. It prompted me to
 								go back and find the email —
-							</blockquote>
-							<p className="text-base italic px-3 py-2 rounded bg-yellow-700/30 text-yellow-900 dark:text-yellow-200 mb-4">
-								it wasn't a rejection, but an invitation to apply for a reopened position.
-							</p>
-							<blockquote className="text-lg italic text-foreground/85 leading-relaxed mb-6">
+								<span className="block text-base px-3 py-2 my-4 rounded bg-yellow-700/30 text-yellow-900 dark:text-yellow-200">
+									it wasn't a rejection, but an invitation to apply for a reopened position.
+								</span>
 								I would have completely missed this opportunity."
 							</blockquote>
 							<div className="flex items-center gap-3">
