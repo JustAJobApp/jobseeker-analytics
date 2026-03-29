@@ -54,11 +54,10 @@ async def stripe_webhook(
         session = event["data"]["object"]
         metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
-        amount_cents_str = metadata.get("amount_cents")
         checkout_session_id = session.get("id")
 
         logger.info(
-            f"checkout.session.completed - user_id: {user_id}, amount: {amount_cents_str}, subscription: {session.get('subscription')}"
+            f"checkout.session.completed - user_id: {user_id}, subscription: {session.get('subscription')}"
         )
 
         if not user_id:
@@ -93,12 +92,8 @@ async def stripe_webhook(
             ).first()
             if user:
                 subscription_id = session.get("subscription")
-                amount_total = session.get("amount_total", 0)
-
-                # Determine amount - prefer explicit amount_cents, fall back to amount_total
-                amount_cents = (
-                    int(amount_cents_str) if amount_cents_str else amount_total
-                )
+                # Use amount_total from Stripe directly — the source of truth
+                amount_cents = session.get("amount_total", 0)
 
                 # Set monthly price and subscription
                 user.monthly_price_cents = amount_cents

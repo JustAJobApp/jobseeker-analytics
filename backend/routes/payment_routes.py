@@ -108,13 +108,11 @@ async def create_checkout(
             cancel_url=f"{settings.APP_URL}/dashboard",
             metadata={
                 "user_id": user_id,
-                "amount_cents": str(amount_cents),
                 "trigger_type": body.trigger_type or "manual",
             },
             subscription_data={
                 "metadata": {
                     "user_id": user_id,
-                    "amount_cents": str(amount_cents)
                 }
             }
         )
