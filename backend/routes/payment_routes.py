@@ -18,10 +18,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-# Fixed premium prices - no user-supplied amounts allowed
-PREMIUM_AMOUNT_CENTS = 500   # $5/month
-YEARLY_AMOUNT_CENTS = 4900   # $49/year
-
 
 # Request/Response models
 class ValidatePromoRequest(BaseModel):
@@ -78,13 +74,11 @@ async def create_checkout(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Select fixed Price ID and amount based on billing interval
+    # Select fixed Price ID based on billing interval
     if body.interval == "yearly":
         price_id = settings.STRIPE_YEARLY_PRICE_ID
-        amount_cents = YEARLY_AMOUNT_CENTS
     else:
         price_id = settings.STRIPE_MONTHLY_PRICE_ID
-        amount_cents = PREMIUM_AMOUNT_CENTS
 
     try:
         # Create or get Stripe customer
@@ -117,7 +111,7 @@ async def create_checkout(
             }
         )
 
-        logger.info(f"Created checkout session {checkout_session.id} for user {user_id}, amount: {amount_cents}")
+        logger.info(f"Created checkout session {checkout_session.id} for user {user_id}, price: {price_id}")
         return {"checkout_url": checkout_session.url, "session_id": checkout_session.id}
 
     except stripe.error.StripeError as e:
