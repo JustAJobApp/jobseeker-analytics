@@ -60,6 +60,7 @@
     - '@docusign.net'  # offers
     - '@eqrecruiters.com'
     - '@hire.lever.co'
+    - '@work.getrocket.io'
 
 ## exclude all of the following subjects
 - logic: all
