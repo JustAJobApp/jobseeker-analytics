@@ -101,10 +101,7 @@ function PricingContent() {
 	useEffect(() => {
 		if (action === "upgrade" && isLoggedIn && !hasTriggeredUpgrade.current) {
 			hasTriggeredUpgrade.current = true;
-			// Small delay to ensure state is settled
-			setTimeout(() => {
-				triggerCheckout(interval);
-			}, 100);
+			triggerCheckout(interval);
 		}
 	}, [action, isLoggedIn]);
 
