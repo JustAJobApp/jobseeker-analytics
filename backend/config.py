@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     COOKIE_SECRET: str
     STRIPE_SECRET_KEY: str = "sk_test_placeholder_for_dev"
     STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder_for_dev"
+    STRIPE_MONTHLY_PRICE_ID: str = "price_placeholder_for_dev"
+    STRIPE_YEARLY_PRICE_ID: str = "price_placeholder_for_dev"
     ENV: str = "dev"
     APP_URL: str = "http://localhost:3000"  # Frontend URL - default for local dev
     API_URL: str = "http://localhost:8000"  # Backend API URL - default for local dev

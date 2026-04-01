@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
@@ -18,9 +18,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-# Fixed premium price - no user-supplied amounts allowed
-PREMIUM_AMOUNT_CENTS = 500  # $5/month
-
 
 # Request/Response models
 class ValidatePromoRequest(BaseModel):
@@ -29,7 +26,30 @@ class ValidatePromoRequest(BaseModel):
 
 class CheckoutRequest(BaseModel):
     trigger_type: Optional[str] = None
-    is_recurring: bool = True  # Default to recurring for backwards compatibility
+    interval: Optional[Literal["monthly", "yearly"]] = "monthly"
+
+
+@router.get("/payment/prices")
+@limiter.limit("30/minute")
+async def get_prices(request: Request):
+    """Return unit_amount and interval for each premium price. No auth required."""
+    get_stripe_key()
+    try:
+        monthly = stripe.Price.retrieve(settings.STRIPE_MONTHLY_PRICE_ID)
+        yearly = stripe.Price.retrieve(settings.STRIPE_YEARLY_PRICE_ID)
+        return {
+            "monthly": {
+                "unit_amount": monthly["unit_amount"],
+                "interval": monthly["recurring"]["interval"],
+            },
+            "yearly": {
+                "unit_amount": yearly["unit_amount"],
+                "interval": yearly["recurring"]["interval"],
+            },
+        }
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error fetching prices: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prices")
 
 
 @router.post("/payment/validate-promo")
@@ -77,8 +97,11 @@ async def create_checkout(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Use fixed premium amount - ignore any user-supplied amount
-    amount_cents = PREMIUM_AMOUNT_CENTS
+    # Select fixed Price ID based on billing interval
+    if body.interval == "yearly":
+        price_id = settings.STRIPE_YEARLY_PRICE_ID
+    else:
+        price_id = settings.STRIPE_MONTHLY_PRICE_ID
 
     try:
         # Create or get Stripe customer
@@ -91,61 +114,27 @@ async def create_checkout(
             db_session.add(user)
             db_session.commit()
 
-        # Build checkout session based on payment type
-        if body.is_recurring:
-            # Recurring subscription
-            checkout_session = stripe.checkout.Session.create(
-                customer=user.stripe_customer_id,
-                mode="subscription",
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": amount_cents,
-                        "recurring": {"interval": "month"},
-                        "product_data": {"name": "JustAJobApp Monthly Contribution"}
-                    },
-                    "quantity": 1
-                }],
-                success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.APP_URL}/dashboard",
-                metadata={
+        checkout_session = stripe.checkout.Session.create(
+            customer=user.stripe_customer_id,
+            mode="subscription",
+            line_items=[{
+                "price": price_id,
+                "quantity": 1
+            }],
+            success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.APP_URL}/dashboard",
+            metadata={
+                "user_id": user_id,
+                "trigger_type": body.trigger_type or "manual",
+            },
+            subscription_data={
+                "metadata": {
                     "user_id": user_id,
-                    "amount_cents": str(amount_cents),
-                    "trigger_type": body.trigger_type or "manual",
-                    "is_recurring": "true"
-                },
-                subscription_data={
-                    "metadata": {
-                        "user_id": user_id,
-                        "amount_cents": str(amount_cents)
-                    }
                 }
-            )
-        else:
-            # One-time payment
-            checkout_session = stripe.checkout.Session.create(
-                customer=user.stripe_customer_id,
-                mode="payment",
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": amount_cents,
-                        "product_data": {"name": "JustAJobApp One-Time Contribution"}
-                    },
-                    "quantity": 1
-                }],
-                success_url=f"{settings.APP_URL}/payment/thank-you?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.APP_URL}/dashboard",
-                metadata={
-                    "user_id": user_id,
-                    "amount_cents": str(amount_cents),
-                    "trigger_type": body.trigger_type or "manual",
-                    "is_recurring": "false"
-                }
-            )
+            }
+        )
 
-        payment_type = "recurring" if body.is_recurring else "one-time"
-        logger.info(f"Created {payment_type} checkout session {checkout_session.id} for user {user_id}, amount: {amount_cents}")
+        logger.info(f"Created checkout session {checkout_session.id} for user {user_id}, price: {price_id}")
         return {"checkout_url": checkout_session.url, "session_id": checkout_session.id}
 
     except stripe.error.StripeError as e:
@@ -155,12 +144,12 @@ async def create_checkout(
 
 @router.post("/payment/cancel")
 @limiter.limit("5/minute")
-async def cancel_contribution(
+async def cancel_subscription(
     request: Request,
     db_session: database.DBSession,
     user_id: str = Depends(validate_session)
 ):
-    """Cancel contribution subscription."""
+    """Cancel subscription."""
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -184,7 +173,7 @@ async def cancel_contribution(
             cancel_at_period_end=True
         )
 
-        # Don't clear monthly_contribution_cents yet - webhook will handle that
+        # Don't clear subscription_price_cents yet - webhook will handle that
         # when subscription actually ends
         period_end = updated_subscription.get("cancel_at")
 

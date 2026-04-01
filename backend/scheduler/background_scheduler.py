@@ -155,7 +155,7 @@ def get_eligible_premium_users(db_session) -> List[Users]:
     Premium users are:
     - Users with active coach (CoachClientLink with no end_date)
     - Users who are coaches (role = 'coach')
-    - Users contributing $5+/month (monthly_contribution_cents >= 500)
+    - Users with an active $5+/month subscription (subscription_price_cents >= 500)
     """
     # Query users with premium tier
     eligible_users = db_session.exec(

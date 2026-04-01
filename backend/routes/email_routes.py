@@ -560,7 +560,7 @@ def query_emails(request: Request, db_session: database.DBSession, user_id: str 
             if email.job_title is None or email.job_title == "" or email.job_title == "null":
                 new_job_title = 'Unknown'
             else:
-                new_job_title = normalize_job_title(email.job_title)
+                new_job_title = normalize_job_title(email.job_title) or 'Unknown'
             if email.job_title != new_job_title:
                 email.job_title = new_job_title
                 db_session.add(email)

@@ -278,6 +278,18 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 							</div>
 						</div>
 
+						{/* Shop - top-level external link */}
+						<a
+							className={navButtonClasses}
+							href={siteConfig.links.shop}
+							rel="noopener noreferrer"
+							target="_blank"
+							onClick={() => posthog.capture("shop_link_clicked", { source: "top_nav" })}
+						>
+							Shop
+							<ExternalLinkIcon />
+						</a>
+
 						<ThemeSwitch className="px-2 py-1.5 border border-divider rounded-md text-default-500 hover:text-foreground hover:border-default-400 transition-colors block" />
 
 						{/* Back to Dashboard button and Logout icon - shown when authenticated and not on dashboard */}
@@ -562,6 +574,19 @@ export const Navbar = ({ defaultCollapsed = false, isPremium = false, onSettings
 							}}
 						>
 							Resume Writing (Sam Struan)
+							<ExternalLinkIcon />
+						</a>
+						<a
+							className="flex items-center gap-2 px-3 py-2 pl-6 rounded-md text-base font-medium text-foreground/80 hover:text-foreground hover:bg-content2"
+							href={siteConfig.links.shop}
+							rel="noopener noreferrer"
+							target="_blank"
+							onClick={() => {
+								posthog.capture("shop_link_clicked", { source: "mobile_menu" });
+								setIsOpen(false);
+							}}
+						>
+							Shop
 							<ExternalLinkIcon />
 						</a>
 						<a
