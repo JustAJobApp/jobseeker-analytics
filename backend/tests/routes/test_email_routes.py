@@ -33,6 +33,7 @@ def test_fetch_emails_to_db(logged_in_user, db_session, mock_authenticated_user)
             mock_authenticated_user,
             Request({"type": "http", "session": {}}),
             user_id=logged_in_user.user_id,
+            gmail_query="after:2026/01/01 -from:me -in:sent AND (subject:interview)",
         )
 
         process_task_run: task_models.TaskRuns = db_session.exec(
@@ -55,6 +56,7 @@ def test_fetch_emails_to_db_in_progress_no_new_scan(
             mock_authenticated_user,
             Request({"type": "http", "session": {}}),
             user_id=logged_in_user.user_id,
+            gmail_query="after:2026/01/01 -from:me -in:sent AND (subject:interview)",
         )
 
         # Should not attempt to fetch emails since scan already in progress
