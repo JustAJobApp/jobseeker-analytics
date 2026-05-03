@@ -330,7 +330,8 @@ async def getUser(request: Request, db_session: database.DBSession, user_id: str
         "sync_email_address": user.sync_email_address,
         "is_subscriber": (user.subscription_price_cents or 0) > 0,
         "subscribed_since": user.subscribed_at.isoformat() if user.subscribed_at else None,
-        "has_active_coach": active_coach_link is not None
+        "has_active_coach": active_coach_link is not None,
+        "email_marketing_consent": user.email_marketing_consent,
     }
 
 

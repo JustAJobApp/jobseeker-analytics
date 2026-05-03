@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/react";
+import { Button, Input } from "@heroui/react";
+import posthog from "posthog-js";
 
 import { Navbar } from "@/components/navbar";
 import { PrivacyFirst } from "@/components/PrivacyFirst";
@@ -10,7 +11,40 @@ import { PrivacyFirst } from "@/components/PrivacyFirst";
 const Index = () => {
 	const [showImagePopup, setShowImagePopup] = useState(false);
 	const [popupImageSrc, setPopupImageSrc] = useState("");
+	const [founderEmail, setFounderEmail] = useState("");
+	const [founderEmailState, setFounderEmailState] = useState<
+		"idle" | "submitting" | "success" | "error"
+	>("idle");
 	const router = useRouter();
+	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
+
+	const handleFounderSignup = async (e: React.FormEvent) => {
+		e.preventDefault();
+		const email = founderEmail.trim();
+		if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			setFounderEmailState("error");
+			return;
+		}
+		setFounderEmailState("submitting");
+		try {
+			const res = await fetch(`${apiUrl}/api/email-signup`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email })
+			});
+			if (res.ok) {
+				setFounderEmailState("success");
+				setFounderEmail("");
+				posthog.capture("founder_updates_landing_signup", { success: true });
+			} else {
+				setFounderEmailState("error");
+				posthog.capture("founder_updates_landing_signup", { success: false });
+			}
+		} catch {
+			setFounderEmailState("error");
+			posthog.capture("founder_updates_landing_signup", { success: false });
+		}
+	};
 
 	const handleLogin = () => {
 		router.push(`/login`);
@@ -331,6 +365,45 @@ const Index = () => {
 							>
 								Login
 							</a>
+						</div>
+
+						<div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 text-left max-w-xl mx-auto">
+							<p className="text-sm text-foreground/70 mb-3">
+								Get behind-the-scenes email updates from the founder. Cat pictures are just as
+								likely as screenshots of features I&apos;m thinking about.
+							</p>
+							{founderEmailState === "success" ? (
+								<p className="text-sm text-primary font-medium">
+									Thanks — see you in your inbox.
+								</p>
+							) : (
+								<form className="flex flex-col sm:flex-row gap-2" onSubmit={handleFounderSignup}>
+									<Input
+										aria-label="Email address"
+										className="flex-grow"
+										isDisabled={founderEmailState === "submitting"}
+										placeholder="you@example.com"
+										type="email"
+										value={founderEmail}
+										onValueChange={(v) => {
+											setFounderEmail(v);
+											if (founderEmailState === "error") setFounderEmailState("idle");
+										}}
+									/>
+									<Button
+										color="primary"
+										isLoading={founderEmailState === "submitting"}
+										type="submit"
+									>
+										Send me updates
+									</Button>
+								</form>
+							)}
+							{founderEmailState === "error" && (
+								<p className="text-xs text-danger mt-2">
+									Hmm — that didn&apos;t work. Check the email and try again.
+								</p>
+							)}
 						</div>
 					</div>
 				</div>

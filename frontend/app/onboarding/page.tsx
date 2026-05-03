@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/react";
 import posthog from "posthog-js";
 
+import FounderUpdatesOptIn from "@/components/FounderUpdatesOptIn";
 import { GoogleIcon } from "@/components/icons";
 import { Navbar } from "@/components/navbar";
 import Spinner from "@/components/spinner";
@@ -108,6 +109,9 @@ function OnboardingContent() {
 	const [previewLimited, setPreviewLimited] = useState(false);
 	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 	const [previewError, setPreviewError] = useState<string | null>(null);
+
+	// Founder-updates opt-in (shown on step4a-i and step4a-ii)
+	const [founderUpdatesOptIn, setFounderUpdatesOptIn] = useState(false);
 
 	// Step 4 state
 	const [applicationsFound, setApplicationsFound] = useState(0);
@@ -408,6 +412,17 @@ function OnboardingContent() {
 	};
 
 	const handleGoToDashboard = async () => {
+		if (founderUpdatesOptIn) {
+			fetch(`${apiUrl}/settings/email-marketing-consent`, {
+				method: "PUT",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ consent: true })
+			}).catch(() => {
+				// fire-and-forget — don't block dashboard navigation on consent capture
+			});
+			posthog.capture("founder_updates_opt_in", { surface: "onboarding", screen });
+		}
 		try {
 			await fetch(`${apiUrl}/api/users/complete-onboarding`, {
 				method: "POST",
@@ -981,6 +996,12 @@ function OnboardingContent() {
 							<p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
 								Your entire search fits within your free window — nothing will be hidden.
 							</p>
+							<div className="mb-4 text-left">
+								<FounderUpdatesOptIn
+									checked={founderUpdatesOptIn}
+									onChange={setFounderUpdatesOptIn}
+								/>
+							</div>
 							<Button className="w-full" color="primary" size="lg" onPress={handleGoToDashboard}>
 								Go to my dashboard →
 							</Button>
@@ -1036,6 +1057,12 @@ function OnboardingContent() {
 								Free accounts show the most recent 30 days in the dashboard. As your search continues,
 								your view stays current — older entries roll out as new ones come in. Your full history
 								is always exportable via CSV.
+							</div>
+							<div className="mb-4 text-left">
+								<FounderUpdatesOptIn
+									checked={founderUpdatesOptIn}
+									onChange={setFounderUpdatesOptIn}
+								/>
 							</div>
 							<Button className="w-full mb-3" color="primary" size="lg" onPress={handleGoToDashboard}>
 								Go to my dashboard →

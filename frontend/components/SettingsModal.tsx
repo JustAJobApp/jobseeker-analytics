@@ -10,7 +10,8 @@ import {
 	ModalFooter,
 	Spinner,
 	RadioGroup,
-	Radio
+	Radio,
+	Switch
 } from "@heroui/react";
 import posthog from "posthog-js";
 
@@ -64,6 +65,10 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
+	// Founder updates consent state
+	const [emailMarketingConsent, setEmailMarketingConsent] = useState(false);
+	const [isUpdatingConsent, setIsUpdatingConsent] = useState(false);
+
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
 
 	// Fetch premium status and user info when modal opens
@@ -81,9 +86,36 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 			if (response.ok) {
 				const data = await response.json();
 				setSyncEmail(data.sync_email_address || null);
+				setEmailMarketingConsent(Boolean(data.email_marketing_consent));
 			}
 		} catch (err) {
 			console.error("Error fetching user info:", err);
+		}
+	};
+
+	const handleConsentChange = async (newValue: boolean) => {
+		const previous = emailMarketingConsent;
+		setEmailMarketingConsent(newValue);
+		setIsUpdatingConsent(true);
+		try {
+			const response = await fetch(`${apiUrl}/settings/email-marketing-consent`, {
+				method: "PUT",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ consent: newValue })
+			});
+			if (!response.ok) {
+				setEmailMarketingConsent(previous);
+			} else {
+				posthog.capture("founder_updates_consent_changed", {
+					value: newValue,
+					surface: "settings"
+				});
+			}
+		} catch {
+			setEmailMarketingConsent(previous);
+		} finally {
+			setIsUpdatingConsent(false);
 		}
 	};
 
@@ -541,6 +573,26 @@ export default function SettingsModal({ isOpen, onClose, onSubscriptionChange }:
 										This will stop syncing new emails. Your existing data will remain.
 									</p>
 								)}
+							</div>
+
+							{/* Founder updates */}
+							<div className="border-t border-divider dark:border-[#3d5a3d] pt-4">
+								<div className="flex items-center justify-between gap-4">
+									<div>
+										<p className="font-medium text-foreground dark:text-white">
+											Email updates from the founder
+										</p>
+										<p className="text-sm text-foreground/60 dark:text-gray-400">
+											Behind-the-scenes notes via email from Lianna. May include cat pictures.
+										</p>
+									</div>
+									<Switch
+										aria-label="Email updates from the founder"
+										isDisabled={isUpdatingConsent}
+										isSelected={emailMarketingConsent}
+										onValueChange={handleConsentChange}
+									/>
+								</div>
 							</div>
 
 							{/* Delete Account */}

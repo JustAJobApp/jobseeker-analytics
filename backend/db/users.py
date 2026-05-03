@@ -41,6 +41,9 @@ class Users(SQLModel, table=True):
     # Plan / promo
     plan: str = Field(default="free", nullable=False)  # 'free' | 'promo' | 'paid'
     promo_code_used: str | None = Field(default=None, nullable=True)
+    # Marketing consent (founder updates)
+    email_marketing_consent: bool = Field(default=False, nullable=False)
+    email_marketing_consent_at: datetime | None = Field(default=None, nullable=True)
 
 class CoachClientLink(SQLModel, table=True):
     __tablename__ = "coach_client_link"
