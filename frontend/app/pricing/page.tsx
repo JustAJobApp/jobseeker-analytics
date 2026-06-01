@@ -324,8 +324,8 @@ function PricingContent() {
 								</h3>
 								<p className="text-gray-600 dark:text-gray-300">
 									Free accounts scan up to 500 emails per month, which resets on the 1st. <br />{" "}
-									Premium accounts have a higher monthly buffer to keep our costs predictable —{" "}
-									<br /> if you’re hitting limits, email{" "}
+									Premium accounts have a higher monthly buffer to keep our costs predictable — <br />{" "}
+									if you’re hitting limits, email{" "}
 									<a className="underline" href="mailto:help@justajobapp.com">
 										help@justajobapp.com
 									</a>{" "}
@@ -337,8 +337,9 @@ function PricingContent() {
 									What are automatic updates?
 								</h3>
 								<p className="text-gray-600 dark:text-gray-300">
-									We check your email twice a day to stop you from missing recruiter messages.
-									<br />Your dashboard stays current without you having to manually refresh.
+									We check your email twice a day to help you stop missing recruiter messages.
+									<br />
+									Your dashboard stays current without you wasting time in a messy inbox.
 								</p>
 							</div>
 							<div>
