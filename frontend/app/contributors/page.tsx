@@ -20,7 +20,7 @@ export default function ContributorsPage() {
 	return (
 		<div className="flex flex-col">
 			<Navbar />
-			<main className="flex-grow bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+			<main className="flex-grow">
 				<div className="container mx-auto px-4 py-12">
 					{/* Header */}
 					<div className="text-center mb-12">
@@ -104,7 +104,7 @@ export default function ContributorsPage() {
 
 					{/* Call to Action */}
 					<div className="text-center mt-16">
-						<div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg max-w-2xl mx-auto">
+						<div className="bg-white bg-background dark:bg-content1 rounded-2xl p-8 shadow-lg max-w-2xl mx-auto">
 							<h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
 								Want to join the Wall of Fame?
 							</h2>
